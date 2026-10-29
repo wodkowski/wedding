@@ -12,11 +12,30 @@ tick(); setInterval(tick, 1000);
 const form = document.getElementById('rsvp-form');
 const fields = document.getElementById('attending-fields');
 const status = document.getElementById('form-status');
+const feedbackDialog = document.getElementById('feedback-dialog');
+const feedbackTitle = document.getElementById('feedback-title');
+const feedbackIcon = document.getElementById('feedback-icon');
+document.getElementById('feedback-close').addEventListener('click', () => feedbackDialog.close());
+function showFeedback() {
+  const positive = status.className === 'success';
+  feedbackDialog.dataset.kind = positive ? 'success' : 'error';
+  feedbackTitle.textContent = positive ? 'Dziękujemy za odpowiedź!' : 'Sprawdź swoją odpowiedź';
+  feedbackIcon.textContent = positive ? '♡' : '!';
+  if (!feedbackDialog.open) feedbackDialog.showModal();
+}
+function clearFieldErrors() {
+  form.querySelectorAll('.is-error').forEach(el => {
+    el.classList.remove('is-error');
+    el.removeAttribute('aria-invalid');
+  });
+}
 function clearSavedFields() {
   form.querySelectorAll('.is-saved').forEach(el => el.classList.remove('is-saved'));
 }
 function onAnswerEdited(event) {
   clearSavedFields();
+  event.target.classList?.remove('is-error');
+  event.target.removeAttribute?.('aria-invalid');
   if (status.className === 'success') {
     status.className = '';
     status.textContent = 'Masz niezapisane zmiany. Wyślij odpowiedź ponownie, aby je zapisać.';
@@ -32,7 +51,7 @@ function readInvitationLink() {
   if (code) {
     form.elements.invitationCode.value = code;
 
-    invitationNotice.textContent = 'Kod z zaproszenia jest już uzupełniony. Wpisz swoje imię i nazwisko zgodnie z zaproszeniem.';
+    invitationNotice.textContent = '';
   } else {
     form.elements.invitationCode.value = '';
 
@@ -56,10 +75,12 @@ let pendingBody = null;
 form.addEventListener('submit', async event => {
   event.preventDefault();
   clearSavedFields();
+  clearFieldErrors();
   status.className = '';
   if (!config.appsScriptUrl) {
     status.className = 'error';
     status.textContent = 'To wersja pokazowa. Odpowiedź nie została wysłana — organizatorzy muszą jeszcze podłączyć Arkusze Google.';
+    showFeedback();
     return;
   }
   const data = Object.fromEntries(new FormData(form));
@@ -70,7 +91,9 @@ form.addEventListener('submit', async event => {
     .map(el => ({ el, value: el.value, checked: el.checked }));
   if (body !== pendingBody) { pendingId = crypto.randomUUID(); pendingBody = body; }
   const button = form.querySelector('button[type=submit]');
+  const originalButtonText = button.textContent;
   button.disabled = true;
+  button.textContent = 'Wysyłamy odpowiedź…';
   status.textContent = 'Wysyłamy Twoją odpowiedź…';
   try {
     const response = await fetch(config.appsScriptUrl, {
@@ -80,7 +103,10 @@ form.addEventListener('submit', async event => {
     if (!response.ok) throw new Error('HTTP');
     const result = await response.json();
     if (result.code === 'INVITATION') {
-
+      ['invitationCode', 'firstName', 'lastName'].forEach(name => {
+        form.elements[name].classList.add('is-error');
+        form.elements[name].setAttribute('aria-invalid', 'true');
+      });
       status.className = 'error';
       status.textContent = 'Sprawdź kod zaproszenia oraz imię i nazwisko zgodne z zaproszeniem. Jeśli problem się powtarza, skontaktuj się z nami.';
       return;
@@ -102,7 +128,11 @@ form.addEventListener('submit', async event => {
   } catch {
     status.className = 'error';
     status.textContent = 'Nie otrzymaliśmy potwierdzenia zapisu. Spróbuj ponownie z tymi samymi danymi lub skontaktuj się z organizatorami. Twoje pola pozostają uzupełnione.';
-  } finally { button.disabled = false; }
+  } finally {
+    button.disabled = false;
+    button.textContent = originalButtonText;
+    showFeedback();
+  }
 });
 // Włącz wysyłanie dopiero po poprawnym zarejestrowaniu obsługi formularza.
 status.textContent = '';

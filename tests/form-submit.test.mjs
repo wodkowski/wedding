@@ -8,16 +8,19 @@ for (const successful of [false, true]) test(successful ? 'saved answers remain 
   const button = { disabled: true };
   const status = { textContent: '' };
   const savedClasses = new Set();
-  const code = { name:'invitationCode', type:'text', value: 'ZZZZ9999', addEventListener() {}, classList:{add: value => savedClasses.add(value),remove: value => savedClasses.delete(value)} };
+  const code = { name:'invitationCode', type:'text', value: 'ZZZZ9999', addEventListener() {}, setAttribute() {}, removeAttribute() {}, classList:{add: value => savedClasses.add(value),remove: value => savedClasses.delete(value)} };
+  const firstName = { classList: { add(value) { this.error = value; } }, setAttribute() {} };
+  const lastName = { classList: { add(value) { this.error = value; } }, setAttribute() {} };
+  const dialog = { dataset:{}, open:false, showModal() { this.open = true; }, close() { this.open = false; } };
   const form = {
-    elements: { attendance: { value: 'yes' }, invitationCode: code },
+    elements: { attendance: { value: 'yes' }, invitationCode: code, firstName, lastName },
     addEventListener(name, handler) { events[name] = handler; },
     querySelector: () => button,
-    querySelectorAll: selector => selector === '.is-saved' ? (savedClasses.has('is-saved') ? [code] : []) : [code],
+    querySelectorAll: selector => selector === '.is-error' ? [] : selector === '.is-saved' ? (savedClasses.has('is-saved') ? [code] : []) : [code],
     reset: () => assert.fail('Must preserve fields after submission')
   };
   const fields = { querySelectorAll: () => [] };
-  const nodes = { 'rsvp-form': form, 'attending-fields': fields, 'form-status': status, 'invitation-notice': {} };
+  const nodes = { 'rsvp-form': form, 'attending-fields': fields, 'form-status': status, 'invitation-notice': {}, 'feedback-dialog':dialog, 'feedback-title':{}, 'feedback-icon':{}, 'feedback-close':{addEventListener(){}} };
   const context = vm.createContext({
     window: { WEDDING_CONFIG: { weddingDate:'2027-06-12',appsScriptUrl:'https://example.test/exec' }, InvitationLinks:{ read: () => null }, location:{ hash:'#rsvp' }, addEventListener() {} },
     document: { querySelectorAll: () => [], getElementById: id => nodes[id] || {} },
@@ -35,6 +38,13 @@ for (const successful of [false, true]) test(successful ? 'saved answers remain 
   assert.equal(code.value,'ZZZZ9999');
   assert.equal(button.disabled,false);
   assert.equal(savedClasses.has('is-saved'),successful);
+  assert.equal(dialog.open,true);
+  assert.equal(dialog.dataset.kind,successful ? 'success' : 'error');
+  if (!successful) {
+    assert.equal(savedClasses.has('is-error'),true);
+    assert.equal(firstName.classList.error,'is-error');
+    assert.equal(lastName.classList.error,'is-error');
+  }
   if (successful) {
     // Edycja innego pola też musi usunąć zieleń z kodu zaproszenia.
     events.input({target:{name:'notes',value:'Nowa wiadomość'}});

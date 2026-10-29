@@ -4,3 +4,13 @@
 #rsvp-form input.is-saved:not([type=radio]):not([type=checkbox]),#rsvp-form select.is-saved,#rsvp-form textarea.is-saved{border-color:#438461;background-color:#edf7ef;color:#24563b}
 #rsvp-form input.is-saved[type=radio]+span{border-color:#438461;background-color:#edf7ef;color:#24563b}
 #rsvp-form input.is-saved[type=checkbox]{accent-color:#438461}
+
+#rsvp-form input.is-error{border-color:#b32b40;background:#fff0f1;color:#8e1f30}
+#rsvp-form input.is-error:focus{outline-color:#b32b40}
+#feedback-dialog{position:fixed;inset:0;margin:auto;border:1px solid var(--line);border-radius:16px;background:var(--cream);color:var(--ink);padding:36px;width:min(440px,calc(100% - 32px));max-height:85vh;overflow:auto;text-align:center;box-shadow:0 24px 90px #25121d40}
+#feedback-dialog::backdrop{background:#20131d99;backdrop-filter:blur(4px)}
+#feedback-dialog h2{font-size:29px;margin:15px 0}
+#feedback-dialog #form-status{font-size:14px;line-height:1.8;margin:0 0 24px}
+#feedback-icon{display:grid;place-items:center;margin:auto;width:60px;height:60px;border-radius:50%;background:#f9e4e8;color:#9e293d;font:32px Georgia}
+#feedback-dialog[data-kind=success] #feedback-icon{background:#e3f2e7;color:#35704b}
+#feedback-dialog .button{justify-content:center;min-width:150px}
