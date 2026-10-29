@@ -12,6 +12,18 @@ tick(); setInterval(tick, 1000);
 const form = document.getElementById('rsvp-form');
 const fields = document.getElementById('attending-fields');
 const status = document.getElementById('form-status');
+function clearSavedFields() {
+  form.querySelectorAll('.is-saved').forEach(el => el.classList.remove('is-saved'));
+}
+function onAnswerEdited(event) {
+  clearSavedFields();
+  if (status.className === 'success') {
+    status.className = '';
+    status.textContent = 'Masz niezapisane zmiany. Wyślij odpowiedź ponownie, aby je zapisać.';
+  }
+}
+form.addEventListener('input', onAnswerEdited);
+form.addEventListener('change', onAnswerEdited);
 
 const invitationNotice = document.getElementById('invitation-notice');
 function readInvitationLink() {
@@ -43,6 +55,7 @@ let pendingId = null;
 let pendingBody = null;
 form.addEventListener('submit', async event => {
   event.preventDefault();
+  clearSavedFields();
   status.className = '';
   if (!config.appsScriptUrl) {
     status.className = 'error';
@@ -52,6 +65,9 @@ form.addEventListener('submit', async event => {
   const data = Object.fromEntries(new FormData(form));
   if (data.website) return;
   const body = JSON.stringify(data);
+  const submittedFields = Array.from(form.querySelectorAll('input, select, textarea'))
+    .filter(el => !el.disabled && el.name !== 'website')
+    .map(el => ({ el, value: el.value, checked: el.checked }));
   if (body !== pendingBody) { pendingId = crypto.randomUUID(); pendingBody = body; }
   const button = form.querySelector('button[type=submit]');
   button.disabled = true;
@@ -72,9 +88,17 @@ form.addEventListener('submit', async event => {
     if (!result.ok || result.requestId !== pendingId) throw new Error('No confirmation');
     status.className = 'success';
     status.textContent = data.attendance === 'yes' ? 'Dziękujemy! Twoja odpowiedź jest zapisana. Do zobaczenia na weselu ♡' : 'Dziękujemy za wiadomość. Twoja odpowiedź jest zapisana ♡';
-    const invitationCode = form.elements.invitationCode.value;
-    form.reset(); form.elements.invitationCode.value = invitationCode;
-    syncAttendance(); pendingId = null; pendingBody = null;
+    const changed = submittedFields.some(({ el, value, checked }) => el.value !== value || el.checked !== checked);
+    if (!changed) {
+      submittedFields.forEach(({ el }) => {
+        const filled = ['radio', 'checkbox'].includes(el.type) ? el.checked : el.value.trim() !== '';
+        if (filled) el.classList.add('is-saved');
+      });
+    } else {
+      status.className = '';
+      status.textContent = 'Odpowiedź została zapisana, ale w trakcie wysyłania zmieniono pola. Wyślij ponownie, aby zapisać aktualne dane.';
+    }
+    pendingId = null; pendingBody = null;
   } catch {
     status.className = 'error';
     status.textContent = 'Nie otrzymaliśmy potwierdzenia zapisu. Spróbuj ponownie z tymi samymi danymi lub skontaktuj się z organizatorami. Twoje pola pozostają uzupełnione.';

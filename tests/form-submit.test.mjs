@@ -3,16 +3,18 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
-test('invalid invitation shows an error, cancels navigation and preserves fields', async () => {
+for (const successful of [false, true]) test(successful ? 'saved answers remain filled, turn green and lose saved state on edit' : 'invalid invitation shows an error, cancels navigation and preserves fields', async () => {
   const events = {};
   const button = { disabled: true };
   const status = { textContent: '' };
-  const code = { value: 'ZZZZ9999', addEventListener() {} };
+  const savedClasses = new Set();
+  const code = { name:'invitationCode', type:'text', value: 'ZZZZ9999', addEventListener() {}, classList:{add: value => savedClasses.add(value),remove: value => savedClasses.delete(value)} };
   const form = {
     elements: { attendance: { value: 'yes' }, invitationCode: code },
     addEventListener(name, handler) { events[name] = handler; },
     querySelector: () => button,
-    reset: () => assert.fail('Must preserve fields after rejection')
+    querySelectorAll: selector => selector === '.is-saved' ? (savedClasses.has('is-saved') ? [code] : []) : [code],
+    reset: () => assert.fail('Must preserve fields after submission')
   };
   const fields = { querySelectorAll: () => [] };
   const nodes = { 'rsvp-form': form, 'attending-fields': fields, 'form-status': status, 'invitation-notice': {} };
@@ -21,17 +23,24 @@ test('invalid invitation shows an error, cancels navigation and preserves fields
     document: { querySelectorAll: () => [], getElementById: id => nodes[id] || {} },
     setInterval() {}, crypto:{ randomUUID: () => 'request-id' }, AbortSignal:{ timeout: () => null },
     FormData: class { *[Symbol.iterator]() { yield ['invitationCode',code.value]; yield ['firstName','Anna']; yield ['lastName','Testowa']; } },
-    fetch: async () => ({ ok:true, json:async () => ({ ok:false,code:'INVITATION' }) })
+    fetch: async () => ({ ok:true, json:async () => successful ? ({ok:true,requestId:'request-id'}) : ({ ok:false,code:'INVITATION' }) })
   });
   vm.runInContext(readFileSync(new URL('../app.js', import.meta.url),'utf8'),context);
   assert.equal(button.disabled,false);
   let cancelled = false;
   await events.submit({ preventDefault() { cancelled = true; } });
   assert.equal(cancelled,true);
-  assert.equal(status.className,'error');
-  assert.match(status.textContent,/Sprawdź kod/);
+  assert.equal(status.className,successful ? 'success' : 'error');
+  assert.match(status.textContent,successful ? /zapisana/ : /Sprawdź kod/);
   assert.equal(code.value,'ZZZZ9999');
   assert.equal(button.disabled,false);
+  assert.equal(savedClasses.has('is-saved'),successful);
+  if (successful) {
+    // Edycja innego pola też musi usunąć zieleń z kodu zaproszenia.
+    events.input({target:{name:'notes',value:'Nowa wiadomość'}});
+    assert.equal(savedClasses.has('is-saved'),false);
+    assert.match(status.textContent,/niezapisane zmiany/);
+  }
 });
 
 test('HTML prevents native navigation and blocks submit until scripts initialize', () => {
