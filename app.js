@@ -44,24 +44,6 @@ function onAnswerEdited(event) {
 form.addEventListener('input', onAnswerEdited);
 form.addEventListener('change', onAnswerEdited);
 
-const invitationNotice = document.getElementById('invitation-notice');
-function readInvitationLink() {
-  const code = window.InvitationLinks.read(window.location.hash);
-  if (code === null) return; // Zwykłe odnośniki sekcji nie usuwają kodu.
-  if (code) {
-    form.elements.invitationCode.value = code;
-
-    invitationNotice.textContent = '';
-  } else {
-    form.elements.invitationCode.value = '';
-
-    invitationNotice.textContent = 'Link zawiera niepoprawny kod. Wpisz kod ręcznie lub poproś nas o nowy link.';
-  }
-}
-readInvitationLink();
-window.addEventListener('hashchange', readInvitationLink);
-
-form.elements.invitationCode.addEventListener('input', () => { invitationNotice.textContent = ''; });
 function syncAttendance() {
   const attending = form.elements.attendance.value === 'yes';
   fields.hidden = !attending;
@@ -102,13 +84,13 @@ form.addEventListener('submit', async event => {
     });
     if (!response.ok) throw new Error('HTTP');
     const result = await response.json();
-    if (result.code === 'INVITATION') {
-      ['invitationCode', 'firstName', 'lastName'].forEach(name => {
+    if (result.code === 'GUEST') {
+      ['firstName', 'lastName'].forEach(name => {
         form.elements[name].classList.add('is-error');
         form.elements[name].setAttribute('aria-invalid', 'true');
       });
       status.className = 'error';
-      status.textContent = 'Sprawdź kod zaproszenia oraz imię i nazwisko zgodne z zaproszeniem. Jeśli problem się powtarza, skontaktuj się z nami.';
+      status.textContent = 'Nie udało się jednoznacznie dopasować osoby do listy gości. Sprawdź imię i nazwisko zgodne z zaproszeniem. Jeśli problem się powtarza, skontaktuj się z nami.';
       return;
     }
     if (!result.ok || result.requestId !== pendingId) throw new Error('No confirmation');

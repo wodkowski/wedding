@@ -23,13 +23,13 @@ function harness() {
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: value => ({ setMimeType: () => JSON.parse(value) }) }
   });
   vm.runInContext(readFileSync(new URL('../google-apps-script/Code.gs', import.meta.url), 'utf8'), context);
-  const data = { requestId:'11111111-1111-4111-8111-111111111111', firstName:'Anna',lastName:'Kowalska',attendance:'yes',menu:'classic',stay:'no',invitationCode:'ABCD2345',notes:'=SUM(1)' };
+  const data = { requestId:'11111111-1111-4111-8111-111111111111', firstName:'Anna',lastName:'Kowalska',attendance:'yes',menu:'classic',stay:'no',notes:'=SUM(1)' };
   return { tables, context, send: changes => context.doPost({ postData: { contents: JSON.stringify({ ...data,...changes }) } }) };
 }
-test('unknown, missing, revoked and mismatched invitations cannot write', () => {
+test('unknown guests and ambiguous names cannot write', () => {
   const h = harness();
-  for (const change of [{invitationCode:''},{invitationCode:'ZZZZ9999'},{invitationCode:'EFGH6789'},{firstName:'Other'}]) assert.equal(h.send(change).ok,false);
-  h.tables.Zaproszenia[1][2]='NIE';
+  assert.equal(h.send({firstName:'Other'}).ok,false);
+  h.tables.Goscie.push(['Z3','Anna','Kowalska','guest3']);
   assert.equal(h.send({}).ok,false);
   assert.equal(h.tables.OdpowiedziV2.length,1);
 });
@@ -43,19 +43,20 @@ test('valid write, retry and update remain one row; formulas escaped', () => {
   assert.equal(h.tables.OdpowiedziV2.length,2);
   assert.equal(h.tables.OdpowiedziV2[1][5],'Wegańskie');
 });
-test('other invitation can only write its own guest; decline clears meals', () => {
+test('listed guest can submit without invitation code; decline clears meals', () => {
   const h=harness(); h.send({});
-  assert.equal(h.send({invitationCode:'EFGH6789',firstName:'Jan',lastName:'Nowak',attendance:'no'}).ok,true);
+  assert.equal(h.send({firstName:'Jan',lastName:'Nowak',attendance:'no'}).ok,true);
   assert.equal(h.tables.OdpowiedziV2.length,3);
   assert.equal(h.tables.OdpowiedziV2[2][0],'guest2');
   assert.equal(h.tables.OdpowiedziV2[2][5],'');
 });
-test('eight character codes accept either case and separators; wrong length rejected', () => {
+test('invitation tables are not required and missing guest IDs are assigned', () => {
   const h = harness();
-  h.tables.Zaproszenia[1][1] = 'ABCD2345';
-  assert.equal(h.send({invitationCode:'abcd-2345'}).ok,true);
-  assert.equal(h.send({invitationCode:'ABCD234'}).ok,false);
-  assert.equal(h.send({invitationCode:'ABCD23456'}).ok,false);
+  delete h.tables.Zaproszenia;
+  h.tables.Goscie[1][3] = '';
+  assert.equal(h.send({firstName:' ANNA '}).ok,true);
+  assert.ok(h.tables.Goscie[1][3]);
+  assert.equal(h.tables.OdpowiedziV2[1][0],h.tables.Goscie[1][3]);
 });
 
 test('generator creates eight character codes and refuses duplicate candidates', () => {
@@ -71,11 +72,11 @@ test('generator creates eight character codes and refuses duplicate candidates',
   assert.equal(h.tables.Zaproszenia.length,4);
 });
 
-test('legacy 32-character code is rejected even when active in the sheet', () => {
+test('code cannot authorize a name missing from the guest list', () => {
   const h = harness();
   const oldCode = 'a'.repeat(32);
   h.tables.Zaproszenia[1][1] = oldCode;
-  assert.equal(h.send({invitationCode:oldCode}).ok,false);
+  assert.equal(h.send({invitationCode:oldCode,firstName:'Other'}).ok,false);
   assert.equal(h.tables.OdpowiedziV2.length,1);
 });
 

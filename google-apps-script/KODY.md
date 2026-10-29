@@ -1,5 +1,7 @@
 # Kody 8-znakowe
 
+> Instrukcja archiwalna. Aktualna wersja działa bez kodów; zobacz `BEZ-KODOW.md`. Poniższe opisy weryfikacji kodów nie dotyczą bieżącego formularza.
+
 ## Indywidualne linki
 
 Po uruchomieniu `generateInvitationCodes` kolumna D zakładki `Zaproszenia` zawiera prywatny link, np. `https://wodkowski.github.io/wedding/#zaproszenie=K7PM4R9A`. Funkcja uzupełnia linki również dla istniejących krótkich kodów i zachowuje kody oraz ID. Nieaktywne lub niepoprawne kody nie otrzymują linku. Jeśli zmienisz domenę strony, zaktualizuj adres bazowy w `Code.gs` i ponownie uruchom generator.

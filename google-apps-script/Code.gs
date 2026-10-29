@@ -103,24 +103,24 @@ function doPost(e) {
     if (attending && (!Object.prototype.hasOwnProperty.call(menus, data.menu) || !Object.prototype.hasOwnProperty.call(stays, data.stay))) throw new Error('Invalid choice');
     const allergies = attending ? text(data.allergies, 500, false) : '';
     const notes = text(data.notes, 1000, false);
-    const invitationCode = text(data.invitationCode, 64, true).replace(/[\s-]/g, '').toLowerCase();
-    if (!/^[2-9a-hj-np-z]{8}$/.test(invitationCode)) return jsonResponse({ ok: false, code: 'INVITATION' });
     lock.waitLock(20000);
     const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
     if (!id) throw new Error('Run setup first');
     const book = SpreadsheetApp.openById(id);
-    const invitations = book.getSheetByName('Zaproszenia').getDataRange().getDisplayValues().slice(1);
-    const matches = invitations.filter(function(row) {
-      return row[1].trim().toLowerCase() === invitationCode && row[2].trim().toUpperCase() === 'TAK';
+    const guestSheet = book.getSheetByName('Goscie');
+    const guests = guestSheet.getDataRange().getDisplayValues().slice(1).map(function(row, index) {
+      return { row: row, sheetRow: index + 2 };
+    }).filter(function(entry) {
+      return normalizeName(entry.row[1]) === normalizeName(firstName) && normalizeName(entry.row[2]) === normalizeName(lastName);
     });
-    if (matches.length !== 1) return jsonResponse({ ok: false, code: 'INVITATION' });
-    const invitationId = matches[0][0];
-    const guests = book.getSheetByName('Goscie').getDataRange().getDisplayValues().slice(1).filter(function(row) {
-      return row[0] === invitationId && normalizeName(row[1]) === normalizeName(firstName) && normalizeName(row[2]) === normalizeName(lastName) && row[3];
-    });
-    // Taki sam błąd dla nieznanego kodu i osoby: nie ujawniamy listy gości.
-    if (guests.length !== 1) return jsonResponse({ ok: false, code: 'INVITATION' });
-    const guest = guests[0];
+    // Brak dopasowania i identyczne dane wielu osób są odrzucane.
+    if (guests.length !== 1) return jsonResponse({ ok: false, code: 'GUEST' });
+    const guest = guests[0].row;
+    const invitationId = guest[0];
+    if (!guest[3]) {
+      guest[3] = Utilities.getUuid();
+      guestSheet.getRange(guests[0].sheetRow, 4).setValue(guest[3]);
+    }
     const sheet = book.getSheetByName('OdpowiedziV2');
     if (!sheet) throw new Error('Missing sheet');
     if (sheet.getLastRow() > 1) {

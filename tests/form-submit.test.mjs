@@ -8,15 +8,14 @@ for (const successful of [false, true]) test(successful ? 'saved answers remain 
   const button = { disabled: true };
   const status = { textContent: '' };
   const savedClasses = new Set();
-  const code = { name:'invitationCode', type:'text', value: 'ZZZZ9999', addEventListener() {}, setAttribute() {}, removeAttribute() {}, classList:{add: value => savedClasses.add(value),remove: value => savedClasses.delete(value)} };
-  const firstName = { classList: { add(value) { this.error = value; } }, setAttribute() {} };
+  const firstName = { name:'firstName', type:'text', value: 'Anna', setAttribute() {}, removeAttribute() {}, classList:{add: value => savedClasses.add(value),remove: value => savedClasses.delete(value)} };
   const lastName = { classList: { add(value) { this.error = value; } }, setAttribute() {} };
   const dialog = { dataset:{}, open:false, showModal() { this.open = true; }, close() { this.open = false; } };
   const form = {
-    elements: { attendance: { value: 'yes' }, invitationCode: code, firstName, lastName },
+    elements: { attendance: { value: 'yes' }, firstName, lastName },
     addEventListener(name, handler) { events[name] = handler; },
     querySelector: () => button,
-    querySelectorAll: selector => selector === '.is-error' ? [] : selector === '.is-saved' ? (savedClasses.has('is-saved') ? [code] : []) : [code],
+    querySelectorAll: selector => selector === '.is-error' ? [] : selector === '.is-saved' ? (savedClasses.has('is-saved') ? [firstName] : []) : [firstName],
     reset: () => assert.fail('Must preserve fields after submission')
   };
   const fields = { querySelectorAll: () => [] };
@@ -25,8 +24,8 @@ for (const successful of [false, true]) test(successful ? 'saved answers remain 
     window: { WEDDING_CONFIG: { weddingDate:'2027-06-12',appsScriptUrl:'https://example.test/exec' }, InvitationLinks:{ read: () => null }, location:{ hash:'#rsvp' }, addEventListener() {} },
     document: { querySelectorAll: () => [], getElementById: id => nodes[id] || {} },
     setInterval() {}, crypto:{ randomUUID: () => 'request-id' }, AbortSignal:{ timeout: () => null },
-    FormData: class { *[Symbol.iterator]() { yield ['invitationCode',code.value]; yield ['firstName','Anna']; yield ['lastName','Testowa']; } },
-    fetch: async () => ({ ok:true, json:async () => successful ? ({ok:true,requestId:'request-id'}) : ({ ok:false,code:'INVITATION' }) })
+    FormData: class { *[Symbol.iterator]() { yield ['firstName','Anna']; yield ['lastName','Testowa']; } },
+    fetch: async () => ({ ok:true, json:async () => successful ? ({ok:true,requestId:'request-id'}) : ({ ok:false,code:'GUEST' }) })
   });
   vm.runInContext(readFileSync(new URL('../app.js', import.meta.url),'utf8'),context);
   assert.equal(button.disabled,false);
@@ -34,15 +33,14 @@ for (const successful of [false, true]) test(successful ? 'saved answers remain 
   await events.submit({ preventDefault() { cancelled = true; } });
   assert.equal(cancelled,true);
   assert.equal(status.className,successful ? 'success' : 'error');
-  assert.match(status.textContent,successful ? /zapisana/ : /Sprawdź kod/);
-  assert.equal(code.value,'ZZZZ9999');
+  assert.match(status.textContent,successful ? /zapisana/ : /Sprawdź imię/);
+  assert.equal(firstName.value,'Anna');
   assert.equal(button.disabled,false);
   assert.equal(savedClasses.has('is-saved'),successful);
   assert.equal(dialog.open,true);
   assert.equal(dialog.dataset.kind,successful ? 'success' : 'error');
   if (!successful) {
     assert.equal(savedClasses.has('is-error'),true);
-    assert.equal(firstName.classList.error,'is-error');
     assert.equal(lastName.classList.error,'is-error');
   }
   if (successful) {
