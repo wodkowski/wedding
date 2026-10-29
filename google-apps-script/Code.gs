@@ -34,18 +34,36 @@ function generateInvitationCodes() {
     const invitations = book.getSheetByName('Zaproszenia');
     const guests = book.getSheetByName('Goscie');
     const known = invitations.getDataRange().getDisplayValues().slice(1).map(function(row) { return row[0]; });
+    const usedCodes = invitations.getDataRange().getDisplayValues().slice(1).map(function(row) { return row[1].trim().toLowerCase(); });
     const rows = guests.getDataRange().getDisplayValues().slice(1);
     rows.forEach(function(row, index) {
       const invitationId = row[0].trim();
       if (!invitationId || !row[1].trim() || !row[2].trim()) return;
       if (known.indexOf(invitationId) < 0) {
-        invitations.appendRow([safeCell(invitationId), Utilities.getUuid().replace(/-/g, ''), 'TAK']);
+        const code = createInvitationCode(usedCodes);
+        invitations.appendRow([safeCell(invitationId), code, 'TAK']);
+        usedCodes.push(code.toLowerCase());
         known.push(invitationId);
       }
       if (!row[3]) guests.getRange(index + 2, 4).setValue(Utilities.getUuid());
     });
     SpreadsheetApp.flush();
   } finally { lock.releaseLock(); }
+}
+
+function createInvitationCode(usedCodes) {
+  // 40 losowych bitów = 8 znaków. Bez mylących 0, 1, I i O.
+  const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  for (let attempt = 0; attempt < 20; attempt++) {
+    let random = parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 10), 16);
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += alphabet[random % 32];
+      random = Math.floor(random / 32);
+    }
+    if (usedCodes.indexOf(code.toLowerCase()) < 0) return code;
+  }
+  throw new Error('Nie udało się wygenerować unikalnego kodu. Spróbuj ponownie.');
 }
 
 function safeCell(value) {
@@ -79,7 +97,7 @@ function doPost(e) {
     const allergies = attending ? text(data.allergies, 500, false) : '';
     const notes = text(data.notes, 1000, false);
     const invitationCode = text(data.invitationCode, 64, true).replace(/[\s-]/g, '').toLowerCase();
-    if (!/^[a-f0-9]{32}$/.test(invitationCode)) return jsonResponse({ ok: false, code: 'INVITATION' });
+    if (!/^[2-9a-hj-np-z]{8}$/.test(invitationCode)) return jsonResponse({ ok: false, code: 'INVITATION' });
     lock.waitLock(20000);
     const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
     if (!id) throw new Error('Run setup first');
