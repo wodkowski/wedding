@@ -13,7 +13,7 @@ function harness() {
     getDataRange: () => ({ getDisplayValues: () => tables[name].map(row => row.map(String)) }),
     getLastRow: () => tables[name].length,
     appendRow: row => tables[name].push(row),
-    getRange: (r,c) => ({ setValues: rows => rows.forEach((row,i) => { tables[name][r-1+i] = row; }), setValue: value => { tables[name][r-1][c-1] = value; } })
+    getRange: (r,c) => ({ setValues: rows => rows.forEach((row,i) => { tables[name][r-1+i] ||= []; row.forEach((value,j) => { tables[name][r-1+i][c-1+j] = value; }); }), setValue: value => { tables[name][r-1][c-1] = value; } })
   });
   const context = vm.createContext({
     LockService: { getScriptLock: () => ({ waitLock: () => { held = true; }, hasLock: () => held, releaseLock: () => { held = false; } }) },
@@ -87,4 +87,29 @@ test('invalid data rejected and generation preserves existing codes', () => {
   h.context.generateInvitationCodes();
   assert.equal(h.tables.Zaproszenia.length,3);
   assert.equal(h.tables.Zaproszenia[1][1],'ABCD2345');
+});
+
+const companionData = {hasCompanion:'yes',companionFirstName:'Maria',companionLastName:'Spoza Listy',companionMenu:'vegan',companionStay:'yes',companionAllergies:'Orzechy'};
+test('one companion outside guest list is saved under verified main guest and updated', () => {
+  const h=harness();
+  assert.equal(h.send(companionData).ok,true);
+  assert.equal(h.tables.OdpowiedziV2.length,2);
+  assert.deepEqual(Array.from(h.tables.OdpowiedziV2[1].slice(11)),['Tak','Maria','Spoza Listy','Wegańskie','Tak','Orzechy']);
+  assert.equal(h.send({...companionData,requestId:'22222222-2222-4222-8222-222222222222',companionFirstName:'Ewa'}).ok,true);
+  assert.equal(h.tables.OdpowiedziV2.length,2);
+  assert.equal(h.tables.OdpowiedziV2[1][12],'Ewa');
+});
+test('removing companion or declining clears previously saved companion data', () => {
+  for (const changes of [{hasCompanion:'no'},{attendance:'no'}]) {
+    const h=harness(); h.send(companionData);
+    assert.equal(h.send({...companionData,...changes,requestId:'22222222-2222-4222-8222-222222222222'}).ok,true);
+    assert.deepEqual(Array.from(h.tables.OdpowiedziV2[1].slice(11)),['Nie','','','','','']);
+  }
+});
+test('unverified main guest, incomplete companion and multiple companion flag rejected', () => {
+  const h=harness();
+  for (const changes of [{firstName:'Unknown'},{companionFirstName:''},{companionMenu:'toString'},{hasCompanion:'2'}]) {
+    assert.equal(h.send({...companionData,...changes}).ok,false);
+  }
+  assert.equal(h.tables.OdpowiedziV2.length,1);
 });

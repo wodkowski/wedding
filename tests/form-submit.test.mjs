@@ -12,14 +12,14 @@ for (const successful of [false, true]) test(successful ? 'saved answers remain 
   const lastName = { classList: { add(value) { this.error = value; } }, setAttribute() {} };
   const dialog = { dataset:{}, open:false, showModal() { this.open = true; }, close() { this.open = false; } };
   const form = {
-    elements: { attendance: { value: 'yes' }, firstName, lastName },
+    elements: { attendance: { value: 'yes' }, hasCompanion: { value:'no' }, firstName, lastName },
     addEventListener(name, handler) { events[name] = handler; },
     querySelector: () => button,
     querySelectorAll: selector => selector === '.is-error' ? [] : selector === '.is-saved' ? (savedClasses.has('is-saved') ? [firstName] : []) : [firstName],
     reset: () => assert.fail('Must preserve fields after submission')
   };
   const fields = { querySelectorAll: () => [] };
-  const nodes = { 'rsvp-form': form, 'attending-fields': fields, 'form-status': status, 'invitation-notice': {}, 'feedback-dialog':dialog, 'feedback-title':{}, 'feedback-icon':{}, 'feedback-close':{addEventListener(){}} };
+  const nodes = { 'rsvp-form': form, 'attending-fields': fields, 'companion-fields': {querySelectorAll:()=>[]}, 'form-status': status, 'invitation-notice': {}, 'feedback-dialog':dialog, 'feedback-title':{}, 'feedback-icon':{}, 'feedback-close':{addEventListener(){}} };
   const context = vm.createContext({
     window: { WEDDING_CONFIG: { weddingDate:'2027-06-12',appsScriptUrl:'https://example.test/exec' }, InvitationLinks:{ read: () => null }, location:{ hash:'#rsvp' }, addEventListener() {} },
     document: { querySelectorAll: () => [], getElementById: id => nodes[id] || {} },

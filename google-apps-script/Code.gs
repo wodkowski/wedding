@@ -103,6 +103,15 @@ function doPost(e) {
     if (attending && (!Object.prototype.hasOwnProperty.call(menus, data.menu) || !Object.prototype.hasOwnProperty.call(stays, data.stay))) throw new Error('Invalid choice');
     const allergies = attending ? text(data.allergies, 500, false) : '';
     const notes = text(data.notes, 1000, false);
+    if (data.hasCompanion != null && ['yes', 'no'].indexOf(data.hasCompanion) < 0) throw new Error('Invalid companion count');
+    const hasCompanion = attending && data.hasCompanion === 'yes';
+    let companion = ['', '', '', '', ''];
+    if (hasCompanion) {
+      const companionFirstName = text(data.companionFirstName, 80, true);
+      const companionLastName = text(data.companionLastName, 100, true);
+      if (!Object.prototype.hasOwnProperty.call(menus, data.companionMenu) || !Object.prototype.hasOwnProperty.call(stays, data.companionStay)) throw new Error('Invalid companion choice');
+      companion = [safeCell(companionFirstName), safeCell(companionLastName), menus[data.companionMenu], stays[data.companionStay], safeCell(text(data.companionAllergies, 500, false))];
+    }
     lock.waitLock(20000);
     const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
     if (!id) throw new Error('Run setup first');
@@ -128,7 +137,10 @@ function doPost(e) {
       const previous = records.findIndex(function(row, index) { return index > 0 && row[0] === guest[3]; });
       if (previous > 0 && records[previous][10] === requestId) return jsonResponse({ ok: true, requestId: requestId });
     }
-    const row = [guest[3], new Date(), safeCell(guest[1]), safeCell(guest[2]), attending ? 'Tak' : 'Nie', attending ? menus[data.menu] : '', attending ? stays[data.stay] : '', safeCell(allergies), safeCell(notes), safeCell(invitationId), requestId];
+    const extraHeaders = ['Osoba towarzysząca', 'Imię osoby towarzyszącej', 'Nazwisko osoby towarzyszącej', 'Menu osoby towarzyszącej', 'Nocleg osoby towarzyszącej', 'Alergie osoby towarzyszącej'];
+    sheet.getRange(1, 12, 1, extraHeaders.length).setValues([extraHeaders]);
+    // Jeden wiersz głównego gościa: ponowny zapis zastępuje także dane towarzyszące.
+    const row = [guest[3], new Date(), safeCell(guest[1]), safeCell(guest[2]), attending ? 'Tak' : 'Nie', attending ? menus[data.menu] : '', attending ? stays[data.stay] : '', safeCell(allergies), safeCell(notes), safeCell(invitationId), requestId, hasCompanion ? 'Tak' : 'Nie'].concat(companion);
     const records = sheet.getDataRange().getDisplayValues();
     const existingIndex = records.findIndex(function(record, index) { return index > 0 && record[0] === guest[3]; });
     if (existingIndex > 0) sheet.getRange(existingIndex + 1, 1, 1, row.length).setValues([row]);

@@ -48,6 +48,10 @@ function syncAttendance() {
   const attending = form.elements.attendance.value === 'yes';
   fields.hidden = !attending;
   fields.querySelectorAll('input, select').forEach(el => el.disabled = !attending);
+  const companionFields = document.getElementById('companion-fields');
+  const withCompanion = attending && form.elements.hasCompanion.value === 'yes';
+  companionFields.hidden = !withCompanion;
+  companionFields.querySelectorAll('input, select').forEach(el => el.disabled = !withCompanion);
 }
 form.addEventListener('change', syncAttendance);
 syncAttendance();
@@ -95,7 +99,7 @@ form.addEventListener('submit', async event => {
     }
     if (!result.ok || result.requestId !== pendingId) throw new Error('No confirmation');
     status.className = 'success';
-    status.textContent = data.attendance === 'yes' ? 'Dziękujemy! Twoja odpowiedź jest zapisana. Do zobaczenia na weselu ♡' : 'Dziękujemy za wiadomość. Twoja odpowiedź jest zapisana ♡';
+    status.textContent = data.attendance === 'yes' ? (data.hasCompanion === 'yes' ? 'Dziękujemy! Twoja odpowiedź i dane osoby towarzyszącej są zapisane. Do zobaczenia na weselu ♡' : 'Dziękujemy! Twoja odpowiedź jest zapisana. Do zobaczenia na weselu ♡') : 'Dziękujemy za wiadomość. Twoja odpowiedź jest zapisana ♡';
     const changed = submittedFields.some(({ el, value, checked }) => el.value !== value || el.checked !== checked);
     if (!changed) {
       submittedFields.forEach(({ el }) => {

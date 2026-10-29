@@ -1,5 +1,13 @@
 # Formularz bez kodów zaproszeń
 
+## Osoba towarzysząca
+
+Główny gość może zgłosić maksymalnie jedną osobę towarzyszącą. Tylko główny gość musi występować w `Goscie`. Formularz zbiera imię i nazwisko osoby towarzyszącej, jej menu, nocleg i opcjonalne alergie. Przy nieobecności głównego gościa ta opcja jest ukryta i nie jest zapisywana.
+
+W `OdpowiedziV2` kolumny L–Q są automatycznie dodawane podczas pierwszego nowego zapisu: osoba towarzysząca (Tak/Nie), imię, nazwisko, menu, nocleg, alergie. Dane obu osób zapisują się w jednym wierszu. Ponowne wysłanie zastępuje także dane towarzyszące; wybranie „Nie” lub odmowa obecności usuwa poprzednie dane towarzyszące z tego wiersza. Nie trzeba ponownie uruchamiać `setup`.
+
+Po wklejeniu nowego `Code.gs` zaktualizuj wersję istniejącego wdrożenia i opublikuj zmiany strony. Formularz i skrypt muszą używać tej wersji, aby potwierdzenie obejmowało również osobę towarzyszącą.
+
 Aktualna wersja dopasowuje imię i nazwisko do całej zakładki `Goscie`. Wielkość liter i nadmiarowe odstępy nie mają znaczenia. Brak dopasowania albo więcej niż jedna osoba o tych samych danych powoduje odmowę zapisu.
 
 1. Wklej aktualny `Code.gs` do Apps Script i zapisz.
