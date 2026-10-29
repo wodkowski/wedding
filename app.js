@@ -80,3 +80,6 @@ form.addEventListener('submit', async event => {
     status.textContent = 'Nie otrzymaliśmy potwierdzenia zapisu. Spróbuj ponownie z tymi samymi danymi lub skontaktuj się z organizatorami. Twoje pola pozostają uzupełnione.';
   } finally { button.disabled = false; }
 });
+// Włącz wysyłanie dopiero po poprawnym zarejestrowaniu obsługi formularza.
+status.textContent = '';
+form.querySelector('button[type=submit]').disabled = false;
