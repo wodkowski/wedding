@@ -66,6 +66,7 @@ test('generator creates eight character codes and refuses duplicate candidates',
   h.tables.Goscie.push(['Z3','Maria','Testowa','guest3']);
   h.context.generateInvitationCodes();
   assert.equal(h.tables.Zaproszenia[3][1],code);
+  assert.equal(h.tables.Zaproszenia[3][3],'https://wodkowski.github.io/wedding/#zaproszenie=' + code);
   h.context.generateInvitationCodes();
   assert.equal(h.tables.Zaproszenia.length,4);
 });

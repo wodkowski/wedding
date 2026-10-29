@@ -14,7 +14,7 @@ function setup() {
   }
   // Osobna tabela v2: nie zmieniamy struktury wcześniejszych odpowiedzi.
   const tables = {
-    Zaproszenia: ['ID zaproszenia', 'Kod (prywatny)', 'Aktywne (TAK/NIE)'],
+    Zaproszenia: ['ID zaproszenia', 'Kod (prywatny)', 'Aktywne (TAK/NIE)', 'Prywatny link dla gości'],
     Goscie: ['ID zaproszenia', 'Imię', 'Nazwisko', 'ID gościa (automatyczne)'],
     OdpowiedziV2: ['ID gościa', 'Data aktualizacji', 'Imię', 'Nazwisko', 'Obecność', 'Menu', 'Nocleg', 'Alergie', 'Uwagi', 'ID zaproszenia', 'ID wysyłki']
   };
@@ -46,6 +46,13 @@ function generateInvitationCodes() {
         known.push(invitationId);
       }
       if (!row[3]) guests.getRange(index + 2, 4).setValue(Utilities.getUuid());
+    });
+    invitations.getRange(1, 4).setValue('Prywatny link dla gości');
+    invitations.getDataRange().getDisplayValues().slice(1).forEach(function(row, index) {
+      const code = row[1].trim().toUpperCase();
+      const active = row[2].trim().toUpperCase() === 'TAK';
+      invitations.getRange(index + 2, 4).setValue(active && /^[2-9A-HJ-NP-Z]{8}$/.test(code)
+        ? 'https://wodkowski.github.io/wedding/#zaproszenie=' + encodeURIComponent(code) : '');
     });
     SpreadsheetApp.flush();
   } finally { lock.releaseLock(); }
