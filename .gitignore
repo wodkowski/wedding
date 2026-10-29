@@ -1,0 +1,8 @@
+# Nigdy nie publikuj eksportów gości, kodów zaproszeń ani danych dostępowych.
+.env
+.env.*
+private/
+node_modules/
+*.xlsx
+*.csv
+*.tsv

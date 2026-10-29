@@ -1,0 +1,122 @@
+// Wklej do Apps Script otwartego z docelowego Arkusza Google.
+// Uruchom setup() raz w edytorze przed wdrożeniem aplikacji internetowej.
+function setup() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (!spreadsheet) throw new Error('Otwórz Apps Script z menu Rozszerzenia w arkuszu.');
+  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', spreadsheet.getId());
+  let sheet = spreadsheet.getSheetByName('Odpowiedzi');
+  if (!sheet) sheet = spreadsheet.insertSheet('Odpowiedzi');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['ID odpowiedzi', 'Data zapisu', 'Imię', 'Nazwisko', 'Obecność', 'Menu', 'Nocleg', 'Alergie', 'Uwagi']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#742c3d').setFontColor('#ffffff');
+    sheet.autoResizeColumns(1, 9);
+  }
+  // Osobna tabela v2: nie zmieniamy struktury wcześniejszych odpowiedzi.
+  const tables = {
+    Zaproszenia: ['ID zaproszenia', 'Kod (prywatny)', 'Aktywne (TAK/NIE)'],
+    Goscie: ['ID zaproszenia', 'Imię', 'Nazwisko', 'ID gościa (automatyczne)'],
+    OdpowiedziV2: ['ID gościa', 'Data aktualizacji', 'Imię', 'Nazwisko', 'Obecność', 'Menu', 'Nocleg', 'Alergie', 'Uwagi', 'ID zaproszenia', 'ID wysyłki']
+  };
+  Object.keys(tables).forEach(function(name) {
+    const tab = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
+    if (!tab.getLastRow()) { tab.appendRow(tables[name]); tab.setFrozenRows(1); }
+  });
+}
+
+// Uruchamiaj tylko z edytora Apps Script. Nie jest dostępne przez HTTP.
+// Wypełnij najpierw w zakładce Goscie kolumny A–C, jeden gość na wiersz.
+function generateInvitationCodes() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const book = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID'));
+    const invitations = book.getSheetByName('Zaproszenia');
+    const guests = book.getSheetByName('Goscie');
+    const known = invitations.getDataRange().getDisplayValues().slice(1).map(function(row) { return row[0]; });
+    const rows = guests.getDataRange().getDisplayValues().slice(1);
+    rows.forEach(function(row, index) {
+      const invitationId = row[0].trim();
+      if (!invitationId || !row[1].trim() || !row[2].trim()) return;
+      if (known.indexOf(invitationId) < 0) {
+        invitations.appendRow([safeCell(invitationId), Utilities.getUuid().replace(/-/g, ''), 'TAK']);
+        known.push(invitationId);
+      }
+      if (!row[3]) guests.getRange(index + 2, 4).setValue(Utilities.getUuid());
+    });
+    SpreadsheetApp.flush();
+  } finally { lock.releaseLock(); }
+}
+
+function safeCell(value) {
+  return /^[=+@\-\t\r\n]/.test(value) ? "'" + value : value;
+}
+
+function normalizeName(value) {
+  return String(value).trim().normalize('NFC').toLocaleLowerCase('pl-PL').replace(/\s+/g, ' ');
+}
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  try {
+    if (!e || !e.postData || e.postData.contents.length > 12000) throw new Error('Invalid payload');
+    const data = JSON.parse(e.postData.contents);
+    if (data.website) throw new Error('Invalid submission');
+    const text = function(value, limit, required) {
+      if (value == null && !required) return '';
+      if (typeof value !== 'string' || value.length > limit || (required && !value.trim())) throw new Error('Invalid field');
+      return value.trim();
+    };
+    const requestId = text(data.requestId, 36, true);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) throw new Error('Invalid ID');
+    const firstName = text(data.firstName, 80, true);
+    const lastName = text(data.lastName, 100, true);
+    if (['yes', 'no'].indexOf(data.attendance) < 0) throw new Error('Invalid attendance');
+    const attending = data.attendance === 'yes';
+    const menus = { classic: 'Klasyczne', vegetarian: 'Wegetariańskie', vegan: 'Wegańskie', child: 'Dziecięce' };
+    const stays = { yes: 'Tak', no: 'Nie', unsure: 'Jeszcze nie wiem' };
+    if (attending && (!Object.prototype.hasOwnProperty.call(menus, data.menu) || !Object.prototype.hasOwnProperty.call(stays, data.stay))) throw new Error('Invalid choice');
+    const allergies = attending ? text(data.allergies, 500, false) : '';
+    const notes = text(data.notes, 1000, false);
+    const invitationCode = text(data.invitationCode, 64, true).replace(/[\s-]/g, '').toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(invitationCode)) return jsonResponse({ ok: false, code: 'INVITATION' });
+    lock.waitLock(20000);
+    const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    if (!id) throw new Error('Run setup first');
+    const book = SpreadsheetApp.openById(id);
+    const invitations = book.getSheetByName('Zaproszenia').getDataRange().getDisplayValues().slice(1);
+    const matches = invitations.filter(function(row) {
+      return row[1].trim().toLowerCase() === invitationCode && row[2].trim().toUpperCase() === 'TAK';
+    });
+    if (matches.length !== 1) return jsonResponse({ ok: false, code: 'INVITATION' });
+    const invitationId = matches[0][0];
+    const guests = book.getSheetByName('Goscie').getDataRange().getDisplayValues().slice(1).filter(function(row) {
+      return row[0] === invitationId && normalizeName(row[1]) === normalizeName(firstName) && normalizeName(row[2]) === normalizeName(lastName) && row[3];
+    });
+    // Taki sam błąd dla nieznanego kodu i osoby: nie ujawniamy listy gości.
+    if (guests.length !== 1) return jsonResponse({ ok: false, code: 'INVITATION' });
+    const guest = guests[0];
+    const sheet = book.getSheetByName('OdpowiedziV2');
+    if (!sheet) throw new Error('Missing sheet');
+    if (sheet.getLastRow() > 1) {
+      const records = sheet.getDataRange().getDisplayValues();
+      const previous = records.findIndex(function(row, index) { return index > 0 && row[0] === guest[3]; });
+      if (previous > 0 && records[previous][10] === requestId) return jsonResponse({ ok: true, requestId: requestId });
+    }
+    const row = [guest[3], new Date(), safeCell(guest[1]), safeCell(guest[2]), attending ? 'Tak' : 'Nie', attending ? menus[data.menu] : '', attending ? stays[data.stay] : '', safeCell(allergies), safeCell(notes), safeCell(invitationId), requestId];
+    const records = sheet.getDataRange().getDisplayValues();
+    const existingIndex = records.findIndex(function(record, index) { return index > 0 && record[0] === guest[3]; });
+    if (existingIndex > 0) sheet.getRange(existingIndex + 1, 1, 1, row.length).setValues([row]);
+    else sheet.appendRow(row);
+    SpreadsheetApp.flush();
+    return jsonResponse({ ok: true, requestId: requestId });
+  } catch (error) {
+    return jsonResponse({ ok: false, message: 'Nie udało się zapisać odpowiedzi.' });
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+function jsonResponse(value) {
+  return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
+}
