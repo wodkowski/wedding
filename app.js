@@ -16,6 +16,7 @@
   const dialog = document.getElementById('feedback-dialog');
   const submitButton = form.querySelector('button[type=submit]');
   const addPersonButton = document.getElementById('add-person');
+  const removePersonButton = document.getElementById('remove-person');
   const stateNotice = document.getElementById('save-notice');
   let saved = false;
   let counter = 0;
@@ -38,6 +39,7 @@
   }
   function sync() {
     const current = cards();
+    removePersonButton.hidden = current.length <= 1;
     current.forEach((card,index) => {
       card.querySelector('[data-person-title]').textContent = `Gość ${index+1}`;
       card.querySelector('[data-remove]').hidden = index === 0;
@@ -70,6 +72,14 @@
     if (focus) field(card,'firstName').focus();
   }
   addPersonButton.addEventListener('click',() => addPerson());
+  removePersonButton.addEventListener('click',() => {
+    const current = cards();
+    if (current.length <= 1) return;
+    markDirty();
+    current.at(-1).remove();
+    sync();
+    (removePersonButton.hidden ? addPersonButton : removePersonButton).focus();
+  });
   form.addEventListener('input',event => { markDirty(event.target); sync(); });
   form.addEventListener('change',event => { markDirty(event.target); sync(); });
   function serialize() {
