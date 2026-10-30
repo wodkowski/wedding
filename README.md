@@ -34,6 +34,12 @@ Wpisywany tekst jest zabezpieczony przed wykonaniem jako formuła arkusza. Kontr
 
 Arkusz pozostaw prywatny. Adres `/exec` jest publiczny i pozwala teraz każdemu dopisywać zgłoszenia.
 
+## Kopie i ochrona przed spamem
+
+Aktualny `Code.gs` obsługuje codzienne kopie pełnego arkusza oraz przekierowanie nagłego wzrostu zgłoszeń do zakładki „Do sprawdzenia”. Instrukcja: [OCHRONA.md](google-apps-script/OCHRONA.md). Po wklejeniu kodu uruchom `installProtection` i zaktualizuj wdrożenie. Funkcja tworzy pierwszą kopię i harmonogram w Google. Same testy lokalne ani commit nie uruchamiają kopii na koncie.
+
+Do 20 formularzy i do 100 osób w 5 minut zgłoszenia trafiają normalnie do głównej listy. Po przekroczeniu któregoś progu kolejne są zachowywane do ręcznej weryfikacji przez co najmniej 30 minut. Goście nadal dostają potwierdzenie przyjęcia, duplikaty są dozwolone. Panel „Ochrona” i menu w arkuszu pozwalają sprawdzać stan, zatwierdzać grupy oraz robić kopie ręcznie.
+
 ## Podgląd i testy
 
 - `node preview.mjs` → http://127.0.0.1:4173.
