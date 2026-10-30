@@ -14,6 +14,11 @@
   const list = document.getElementById('people-list');
   const status = document.getElementById('form-status');
   const dialog = document.getElementById('feedback-dialog');
+  const reviewDialog = document.getElementById('review-dialog');
+  const reviewPeople = document.getElementById('review-people');
+  const confirmButton = document.getElementById('review-confirm');
+  let pendingReview = null;
+  let sending = false;
   const submitButton = form.querySelector('button[type=submit]');
   const addPersonButton = document.getElementById('add-person');
   const removePersonButton = document.getElementById('remove-person');
@@ -22,19 +27,60 @@
   let counter = 0;
   const cards = () => Array.from(list.querySelectorAll('.person-card'));
   const field = (card,name) => card.querySelector(`[data-field="${name}"]`);
-  function feedback(kind,text) {
+  function feedback(kind,text,buttonText='Rozumiem',summary=null) {
     status.className = kind;
     status.textContent = text;
+    if (summary) {
+      const intro = document.createElement('p');
+      intro.className = 'feedback-intro';
+      intro.textContent = text;
+      const stats = document.createElement('dl');
+      stats.className = 'feedback-stats';
+      [
+        ['Osób w zgłoszeniu',summary.total],
+        ['Potwierdziło przybycie',summary.attending]
+      ].forEach(([label,value]) => {
+        const tile = document.createElement('div');
+        const term = document.createElement('dt');
+        term.textContent = label;
+        const count = document.createElement('dd');
+        const number = document.createElement('strong');
+        number.textContent = value;
+        count.append(number);
+        tile.append(term,count);
+        stats.append(tile);
+      });
+      const outro = document.createElement('p');
+      outro.className = 'feedback-outro';
+      outro.textContent = 'Do zobaczenia na weselu!';
+      status.replaceChildren(intro,stats,outro);
+    }
     dialog.dataset.kind = kind;
+    document.getElementById('feedback-close').textContent = buttonText;
     document.getElementById('feedback-title').textContent = kind === 'success' ? 'Dziękujemy za odpowiedź!' : 'Nie udało się potwierdzić zapisu';
     document.getElementById('feedback-icon').textContent = kind === 'success' ? '♡' : '!';
     if (!dialog.open) dialog.showModal();
   }
   document.getElementById('feedback-close').addEventListener('click',() => dialog.close());
+  function updateFieldError(el) {
+    const invalid = !el.disabled && el.willValidate && !el.validity.valid;
+    const message = document.getElementById(`${el.id}-error`);
+    el.classList.toggle('is-error',invalid);
+    if (invalid) {
+      el.classList.remove('is-saved');
+      el.setAttribute('aria-invalid','true');
+    } else el.removeAttribute('aria-invalid');
+    if (message) {
+      message.hidden = !invalid;
+      message.textContent = invalid ? (el.required && !el.value.trim() ? 'Pole nie może być puste' : el.validationMessage) : '';
+    }
+  }
+  // Zdarzenie invalid nie bąbelkuje: przechwytujemy je dla wszystkich pól i kart.
+  form.addEventListener('invalid',event => updateFieldError(event.target),true);
   function markDirty(target) {
     form.querySelectorAll('.is-saved').forEach(el => el.classList.remove('is-saved'));
-    if (target) { target.classList.remove('is-error'); target.removeAttribute('aria-invalid'); }
     if (saved) stateNotice.textContent = 'Masz niezapisane zmiany. Wyślij wszystkie odpowiedzi ponownie.';
+    stateNotice.classList.remove('is-confirmed');
     saved = false;
   }
   function sync() {
@@ -46,7 +92,10 @@
       const details = card.querySelector('[data-person-details]');
       const attending = field(card,'attendance').value === 'yes';
       details.hidden = !attending;
-      details.querySelectorAll('input,select').forEach(el => el.disabled = !attending);
+      details.querySelectorAll('input,select').forEach(el => {
+        el.disabled = !attending;
+        if (el.disabled) updateFieldError(el);
+      });
       ['firstName','lastName'].forEach(name => {
         const el = field(card,name);
         el.setCustomValidity(el.value && !el.value.trim() ? 'Wpisz imię lub nazwisko, nie same spacje.' : '');
@@ -62,6 +111,12 @@
       el.name = `person-${counter}-${el.dataset.field}`;
       el.id = `person-${counter}-${el.dataset.field}`;
       el.autocomplete = 'off';
+      const error = document.createElement('span');
+      error.id = `${el.id}-error`;
+      error.className = 'field-error';
+      error.hidden = true;
+      el.insertAdjacentElement('afterend',error);
+      el.setAttribute('aria-describedby',error.id);
     });
     card.querySelector('[data-remove]').addEventListener('click',() => {
       markDirty(); card.remove(); sync();
@@ -80,8 +135,12 @@
     sync();
     (removePersonButton.hidden ? addPersonButton : removePersonButton).focus();
   });
-  form.addEventListener('input',event => { markDirty(event.target); sync(); });
-  form.addEventListener('change',event => { markDirty(event.target); sync(); });
+  function onEdit(event) {
+    markDirty(); sync();
+    if (event.target.classList.contains('is-error')) updateFieldError(event.target);
+  }
+  form.addEventListener('input',onEdit);
+  form.addEventListener('change',onEdit);
   function serialize() {
     return cards().filter(card => !card.hidden).map(card => {
       const data = {};
@@ -89,15 +148,65 @@
       return data;
     });
   }
-  form.addEventListener('submit',async event => {
+  function showReview(people) {
+    const menus = {classic:'Klasyczne (z mięsem)',vegetarian:'Wegetariańskie',vegan:'Wegańskie',child:'Dziecięce'};
+    const stays = {yes:'Tak',no:'Nie',unsure:'Jeszcze nie wiem'};
+    const content = document.createDocumentFragment();
+    people.forEach((person,index) => {
+      const card = document.createElement('article');
+      card.className = 'review-person';
+      const heading = document.createElement('h3');
+      heading.textContent = `Gość ${index+1}: ${person.firstName} ${person.lastName}`;
+      const answers = document.createElement('dl');
+      const attending = person.attendance === 'yes';
+      [
+        ['Obecność',attending ? 'Tak, będzie z nami' : 'Nie, nie może przyjść'],
+        ['Menu',attending ? menus[person.menu] : 'Nie dotyczy'],
+        ['Nocleg',attending ? stays[person.stay] : 'Nie dotyczy'],
+        ['Alergie',attending ? person.allergies || 'Brak informacji' : 'Nie dotyczy'],
+        ['Uwagi',person.notes || 'Brak']
+      ].forEach(([label,value]) => {
+        const row = document.createElement('div');
+        const term = document.createElement('dt');
+        term.textContent = label;
+        const detail = document.createElement('dd');
+        detail.textContent = value;
+        row.append(term,detail);
+        answers.append(row);
+      });
+      card.append(heading,answers);
+      content.append(card);
+    });
+    reviewPeople.replaceChildren(content);
+    document.getElementById('review-count').textContent = `Zgłoszonych osób: ${people.length} · Przybędzie: ${people.filter(person => person.attendance === 'yes').length}`;
+    pendingReview = people;
+    reviewDialog.showModal();
+    reviewPeople.scrollTop = 0;
+  }
+  document.getElementById('review-edit').addEventListener('click',() => reviewDialog.close());
+  reviewDialog.addEventListener('close',() => { pendingReview = null; });
+  confirmButton.addEventListener('click',() => {
+    if (!pendingReview || sending) return;
+    const people = pendingReview;
+    pendingReview = null;
+    reviewDialog.close();
+    sendPeople(people);
+  });
+  form.addEventListener('submit',event => {
     event.preventDefault();
+    if (sending || reviewDialog.open) return;
     if (!form.reportValidity()) return;
+    showReview(serialize());
+  });
+  async function sendPeople(people) {
+    if (sending) return;
+    sending = true;
     form.querySelectorAll('.is-error').forEach(el => { el.classList.remove('is-error'); el.removeAttribute('aria-invalid'); });
     form.querySelectorAll('.is-saved').forEach(el => el.classList.remove('is-saved'));
     saved = false;
     stateNotice.textContent = '';
-    if (!config.appsScriptUrl) { feedback('error','To wersja pokazowa. Organizatorzy muszą jeszcze podłączyć Arkusze Google.'); return; }
-    const people = serialize();
+    stateNotice.classList.remove('is-confirmed');
+    if (!config.appsScriptUrl) { sending = false; feedback('error','To wersja pokazowa. Organizatorzy muszą jeszcze podłączyć Arkusze Google.'); return; }
     const controls = Array.from(form.querySelectorAll('input,select,textarea,button'));
     const previousDisabled = controls.map(el => el.disabled);
     const originalText = submitButton.textContent;
@@ -127,16 +236,23 @@
         if (filled) el.classList.add('is-saved');
       });
       saved = true;
-      stateNotice.textContent = 'Wszystkie odpowiedzi są zapisane.';
-      feedback('success',`Dziękujemy! Wszystkie odpowiedzi są zapisane. Liczba osób w zgłoszeniu: ${result.count}. Do zobaczenia na weselu ♡`);
+      stateNotice.textContent = 'Twoje odpowiedzi zostały nam przekazane. Dziękujemy.';
+      stateNotice.classList.add('is-confirmed');
+      const attendingCount = people.filter(person => person.attendance === 'yes').length;
+      const anyoneAttending = attendingCount > 0;
+      const message = anyoneAttending
+        ? 'Wszystkie odpowiedzi są zapisane.'
+        : 'Dziękujemy za przekazanie odpowiedzi. Bardzo nam przykro, że nie będziemy mogli świętować razem. Będzie nam Was brakowało. Przesyłamy dużo ciepła i mamy nadzieję, że wkrótce spotkamy się przy innej okazj.';
+      feedback('success',message,anyoneAttending ? 'Do zobaczenia!' : 'Dziękujemy',anyoneAttending ? {total:result.count,attending:attendingCount} : null);
     } catch {
       feedback('error','Nie otrzymaliśmy potwierdzenia zapisu. Dane pozostają w formularzu. Spróbuj ponownie z tymi samymi danymi lub skontaktuj się z nami.');
     } finally {
+      sending = false;
       controls.forEach((el,index) => el.disabled = previousDisabled[index]);
       submitButton.textContent = originalText;
       sync();
     }
-  });
+  }
   addPerson(false);
   addPersonButton.disabled = false;
   submitButton.disabled = false;

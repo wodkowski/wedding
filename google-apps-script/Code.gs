@@ -1,12 +1,13 @@
 // Każde wysłanie dopisuje nowe wiersze. Bez listy gości, kodów i wykrywania duplikatów.
 const RESPONSE_SHEET = 'Zgloszenia';
-const ANSWER_HEADERS = ['Data wpisu (Europe/Warsaw)', 'Imię', 'Nazwisko', 'Obecność', 'Menu', 'Nocleg', 'Alergie', 'Uwagi'];
+const ANSWER_HEADERS = ['Data wpisu (Europe/Warsaw)', 'Imię', 'Nazwisko', 'Obecność', 'Menu', 'Nocleg', 'Alergie', 'Uwagi', 'ID zgłoszenia'];
 function setup() {
   const book = SpreadsheetApp.getActiveSpreadsheet();
   if (!book) throw new Error('Otwórz Apps Script z menu Rozszerzenia w arkuszu.');
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', book.getId());
   const sheet = book.getSheetByName(RESPONSE_SHEET) || book.insertSheet(RESPONSE_SHEET);
   if (!sheet.getLastRow()) sheet.appendRow(ANSWER_HEADERS);
+  else sheet.getRange(1,9,1,1).setValues([['ID zgłoszenia']]);
   sheet.setFrozenRows(1);
 }
 // Wpisany tekst ma pozostać tekstem, a nie wykonać się jako formuła arkusza.
@@ -38,9 +39,10 @@ function doPost(e) {
     }
     const translated = function(map,value) { return Object.prototype.hasOwnProperty.call(map,value) ? map[value] : value; };
     const timestamp = Utilities.formatDate(new Date(),'Europe/Warsaw','yyyy-MM-dd HH:mm:ss');
+    const submissionId = Utilities.getUuid();
     const rows = data.people.map(function(person) {
       person = person || {};
-      return [timestamp,safeCell(person.firstName),safeCell(person.lastName),safeCell(translated({yes:'Tak',no:'Nie'},person.attendance)),safeCell(translated(menus,person.menu)),safeCell(translated(stays,person.stay)),safeCell(person.allergies),safeCell(person.notes)];
+      return [timestamp,safeCell(person.firstName),safeCell(person.lastName),safeCell(translated({yes:'Tak',no:'Nie'},person.attendance)),safeCell(translated(menus,person.menu)),safeCell(translated(stays,person.stay)),safeCell(person.allergies),safeCell(person.notes),submissionId];
     });
     lock.waitLock(20000);
     const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
@@ -48,9 +50,10 @@ function doPost(e) {
     const book = SpreadsheetApp.openById(id);
     const sheet = book.getSheetByName(RESPONSE_SHEET);
     if (!sheet) return jsonResponse({ok:false,version:4,code:'SETUP'});
+    sheet.getRange(1,9,1,1).setValues([['ID zgłoszenia']]);
     sheet.getRange(sheet.getLastRow()+1,1,rows.length,ANSWER_HEADERS.length).setValues(rows);
     SpreadsheetApp.flush();
-    return jsonResponse({ok:true,version:4,count:rows.length});
+    return jsonResponse({ok:true,version:4,count:rows.length,submissionId:submissionId});
   } catch (error) {
     return jsonResponse({ok:false,version:4,code:'SAVE'});
   } finally { if (lock.hasLock()) lock.releaseLock(); }

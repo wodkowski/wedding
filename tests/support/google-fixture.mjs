@@ -1,5 +1,6 @@
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {randomUUID} from 'node:crypto';
 export const main={firstName:'Anna',lastName:'Testowa',attendance:'yes',menu:'classic',stay:'no',notes:'Wiadomość'};
 export const invited={firstName:'Jan',lastName:'Testowy',attendance:'yes',menu:'vegan',stay:'yes'};
 export function harness() {
@@ -17,7 +18,7 @@ export function harness() {
     LockService:{getScriptLock:()=>({waitLock:()=>{held=true;},hasLock:()=>held,releaseLock:()=>{held=false;}})},
     PropertiesService:{getScriptProperties:()=>({getProperty:()=> 'book',setProperty(){}})},
     SpreadsheetApp:{openById:()=>book,getActiveSpreadsheet:()=>book,flush(){}},
-    Utilities:{formatDate:(date,zone,format)=>{dateCalls.push({date,zone,format});return '2026-10-30 12:34:56';}},
+    Utilities:{getUuid:randomUUID,formatDate:(date,zone,format)=>{dateCalls.push({date,zone,format});return '2026-10-30 12:34:56';}},
     ContentService:{MimeType:{JSON:'json'},createTextOutput:value=>({setMimeType:()=>JSON.parse(value)})}
   });
   vm.runInContext(readFileSync(new URL('../../google-apps-script/Code.gs',import.meta.url),'utf8'),context);

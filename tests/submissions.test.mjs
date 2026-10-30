@@ -41,7 +41,21 @@ test('entered text stays text rather than becoming a spreadsheet formula',()=>{
 });
 test('setup creates fresh append-only sheet and keeps historic responses untouched',()=>{
   const h=harness();delete h.tables.Zgloszenia;h.tables.OdpowiedziV3=[['old'],['keep']];
-  h.context.setup();assert.equal(h.tables.Zgloszenia[0].length,8);assert.equal(h.tables.OdpowiedziV3[1][0],'keep');
+  h.context.setup();assert.equal(h.tables.Zgloszenia[0].length,9);assert.equal(h.tables.OdpowiedziV3[1][0],'keep');
+});
+
+test('guests sent together share one submission ID; each repeated send gets a new ID',()=>{
+  const h=harness();const first=h.send([main,invited]);const second=h.send([main,invited]);
+  assert.ok(first.submissionId);assert.notEqual(first.submissionId,second.submissionId);
+  assert.equal(h.tables.Zgloszenia[1][8],first.submissionId);assert.equal(h.tables.Zgloszenia[2][8],first.submissionId);
+  assert.equal(h.tables.Zgloszenia[3][8],second.submissionId);assert.equal(h.tables.Zgloszenia[4][8],second.submissionId);
+  assert.equal(h.tables.Zgloszenia[0][8],'ID zgłoszenia');
+});
+
+test('adding submission column does not backfill or alter older guest rows',()=>{
+  const h=harness();h.tables.Zgloszenia.push(['2026-01-01','Stary','Wpis','Tak','Menu','Nie','','']);
+  const old=h.tables.Zgloszenia[1].slice();h.send();
+  assert.deepEqual(h.tables.Zgloszenia[1],old);assert.ok(h.tables.Zgloszenia[2][8]);
 });
 test('missing setup and old protocol fail without claiming data was saved',()=>{
   const h=harness();assert.equal(h.send([main],{version:3}).code,'VERSION');delete h.tables.Zgloszenia;

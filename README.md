@@ -6,6 +6,8 @@ Strona statyczna do GitHub Pages. Dane pary, datę i adres skryptu Google zmieni
 
 Formularz ma karty „Gość 1”, „Gość 2”… i jeden przycisk **Dodaj osobę**. Jedna wysyłka może zawierać kilka osób. Nie ma kodów, listy zaproszeń, powiązań osób, limitów gości ani porównywania nazwisk z listą i wykrywania duplikatów. Imię, nazwisko i obecność są wymagane dla każdego gościa. Menu i nocleg są wymagane przy potwierdzonej obecności. Alergie i uwagi pozostają opcjonalne. Pola obowiązkowe mają gwiazdkę.
 
+Po kliknięciu „Wyślij wszystkie odpowiedzi” otwiera się podsumowanie danych wszystkich gości. „Wróć do edycji” lub Escape zamyka je bez zapisu i bez utraty danych. Dopiero „Zatwierdź i wyślij” wysyła dane do arkusza. Wysyłanie blokuje przyciski, aby nie wykonać dwóch żądań równocześnie.
+
 **Każde wysłanie dopisuje nowe wiersze.** Dwa identyczne zgłoszenia to dwa wpisy. Również zmienione zgłoszenie jest nowym wpisem, a nie aktualizacją. Usunięcie osoby z otwartego formularza nie usuwa wcześniejszych odpowiedzi. Po błędzie sieci ponowienie może utworzyć kolejną kopię, jeśli wcześniejsze żądanie zostało już zapisane.
 
 Po zapisie formularz pozostaje uzupełniony, a wypełnione pola są zielone. Zmiana dowolnego pola albo dodanie/usunięcie karty usuwa zieleń z całości. Potwierdzenia i błędy połączenia są pokazywane w popupie.
@@ -24,6 +26,7 @@ Kolumny zakładki **Zgloszenia**:
 
 - Data wpisu (Europe/Warsaw), z godziną, minutą i sekundą.
 - Imię, nazwisko, obecność, menu, nocleg, alergie i uwagi.
+- ID zgłoszenia — wspólne dla wszystkich osób wysłanych razem. Każda kolejna wysyłka, również z tymi samymi nazwiskami, ma nowe ID. Filtrując po tej kolumnie, zobaczysz osoby z jednego formularza. Starsze wpisy pozostają bez ID; nie przypisujemy im grup wstecz.
 
 Jedna osoba oznacza jeden wiersz. Wszystkie osoby z jednej wysyłki otrzymują ten sam moment wpisu. Skrypt nie odczytuje `Goscie`, `Zaproszenia` ani poprzednich odpowiedzi i niczego w nich nie zmienia. Nie dodaje ID zaproszenia ani powiązań rodzinnych. Dawne zakładki nie są migrowane do nowej listy.
 

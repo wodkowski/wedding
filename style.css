@@ -5,8 +5,8 @@
 #rsvp-form input.is-saved[type=radio]+span{border-color:#438461;background-color:#edf7ef;color:#24563b}
 #rsvp-form input.is-saved[type=checkbox]{accent-color:#438461}
 
-#rsvp-form input.is-error{border-color:#b32b40;background:#fff0f1;color:#8e1f30}
-#rsvp-form input.is-error:focus{outline-color:#b32b40}
+#rsvp-form :is(input,select,textarea).is-error{border:2px solid #b32b40;background:#fff0f1;color:#8e1f30}
+#rsvp-form :is(input,select,textarea).is-error:focus{outline-color:#b32b40}
 #feedback-dialog{position:fixed;inset:0;margin:auto;border:1px solid var(--line);border-radius:16px;background:var(--cream);color:var(--ink);padding:36px;width:min(440px,calc(100% - 32px));max-height:85vh;overflow:auto;text-align:center;box-shadow:0 24px 90px #25121d40}
 #feedback-dialog::backdrop{background:#20131d99;backdrop-filter:blur(4px)}
 #feedback-dialog h2{font-size:29px;margin:15px 0}
@@ -30,3 +30,35 @@
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
 .add-people{grid-template-columns:1fr}.person-card-heading{margin-bottom:20px}
+.save-notice.is-confirmed{font-size:19px;font-weight:600;text-align:center;color:#35704b;margin:18px 0;line-height:1.5}
+.field-error{display:block;margin-top:6px;color:#b32b40;font-size:12px;font-weight:500;line-height:1.5}
+
+#feedback-dialog #form-status{white-space:pre-line}
+#feedback-dialog{width:min(480px,calc(100% - 32px))}
+#feedback-dialog #form-status:has(.feedback-stats){white-space:normal}
+.feedback-intro{color:var(--muted);margin:0 0 24px}
+.feedback-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 24px}
+.feedback-stats>div{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:19px 10px;background:#f0ebe4;border:1px solid #e5dbd0;border-radius:10px}
+.feedback-stats>div:last-child{background:#edf6ef;border-color:#cfe2d3}
+.feedback-stats dt{order:2;font-size:11px;line-height:1.5;color:#6b605d}
+.feedback-stats dd{order:1;margin:0;line-height:1.2;color:var(--ink)}
+.feedback-stats strong{font-size:36px;font-weight:700;font-variant-numeric:tabular-nums}
+.feedback-stats>div:last-child dd{color:#35704b}
+.feedback-outro{font-family:"Playfair Display",serif;font-size:22px;line-height:1.4;color:var(--wine);margin:0}
+@media(max-width:420px){#feedback-dialog{padding:28px 20px}.feedback-stats{gap:8px}.feedback-stats strong{font-size:32px}}
+#review-dialog{position:fixed;inset:0;margin:auto;width:min(650px,calc(100% - 28px));max-height:88vh;max-height:88dvh;padding:28px;border:1px solid var(--line);border-radius:16px;background:var(--cream);color:var(--ink);box-shadow:0 24px 90px #25121d40}
+#review-dialog[open]{display:flex;flex-direction:column}
+#review-dialog::backdrop{background:#20131d99;backdrop-filter:blur(4px)}
+#review-dialog>.eyebrow{margin:0 0 9px;font-size:8px}
+#review-title{font-size:30px;margin:0 0 12px}
+#review-description{font-size:12px;line-height:1.8;color:var(--muted);margin:0}
+#review-count{font-size:12px;font-weight:600;color:var(--wine);margin:15px 0}
+.review-people{overflow-y:auto;min-height:0;padding-right:6px;overscroll-behavior:contain}
+.review-person{padding:18px;background:#fffdf9;border:1px solid var(--line);border-radius:8px;margin-bottom:12px;overflow-wrap:anywhere}
+.review-person h3{font-size:21px;margin:0 0 13px}
+.review-person dl{margin:0;font-size:12px}
+.review-person dl>div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;padding:6px 0;border-top:1px solid #eee6de}
+.review-person dt{color:var(--muted)}.review-person dd{margin:0;white-space:pre-wrap}
+.review-actions{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;padding-top:20px;border-top:1px solid var(--line);margin-top:4px;flex-shrink:0}
+.review-actions .button{gap:12px;justify-content:center}
+@media(max-width:480px){#review-dialog{padding:22px 16px}#review-title{font-size:26px}.review-person{padding:14px}.review-person dl>div{grid-template-columns:70px minmax(0,1fr);gap:8px}.review-actions{grid-template-columns:1fr;gap:8px;padding-top:12px}.review-actions #review-confirm{grid-row:1}}
