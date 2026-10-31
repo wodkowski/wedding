@@ -33,6 +33,7 @@
   const field = (card,name) => card.querySelector(`[data-field="${name}"]:checked`) || card.querySelector(`[data-field="${name}"]`);
   const valueOf = (card,name) => {
     const el = field(card,name);
+    if (name === 'stay') return el.checked ? 'no' : 'yes';
     return el.type === 'radio' && !el.checked ? '' : el.value;
   };
   function feedback(kind,text,buttonText='Rozumiem',summary=null) {
@@ -205,8 +206,8 @@
   stayDialog.addEventListener('close',() => {
     if (stayDeclined) roomMode = 'own';
     if (pendingStayCard && !stayDeclined) {
-      const yes = pendingStayCard.querySelector('[data-field="stay"][value="yes"]');
-      yes.checked = true;
+      const yes = field(pendingStayCard,'stay');
+      yes.checked = false;
       markDirty(); sync();
       updateFieldError(yes);
       yes.focus();
@@ -219,7 +220,7 @@
   function serialize() {
     return cards().filter(card => !card.hidden).map(card => {
       const data = {};
-      card.querySelectorAll('[data-field]').forEach(el => { if (el.dataset.field !== 'room' && !el.disabled && (el.type !== 'radio' || el.checked)) data[el.dataset.field] = el.value; });
+      card.querySelectorAll('[data-field]').forEach(el => { if (el.dataset.field !== 'room' && !el.disabled && (el.type !== 'radio' || el.checked)) data[el.dataset.field] = el.dataset.field === 'stay' ? valueOf(card,'stay') : el.value; });
       data.sharedRoom = valueOf(card,'room') === 'shared' && !field(card,'room').disabled;
       return data;
     });

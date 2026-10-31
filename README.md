@@ -4,7 +4,7 @@ Strona statyczna do GitHub Pages. Dane pary, datę i adres skryptu Google zmieni
 
 ## Najprostszy formularz
 
-Formularz ma karty „Gość 1”, „Gość 2”… i jeden przycisk **Dodaj osobę**. Jedna wysyłka może zawierać maksymalnie dwie osoby — można dodać jednego dodatkowego gościa. Nie ma kodów, listy zaproszeń, powiązań osób, przypisywania do zaproszeń ani porównywania nazwisk z listą i wykrywania duplikatów. Imię, nazwisko i obecność są wymagane dla każdego gościa. Menu i nocleg są wymagane przy potwierdzonej obecności. Dla każdego gościa trzeba podać przynajmniej jedną formę kontaktu: e-mail lub telefon. Można podać oba; jeśli są wpisane, oba muszą mieć poprawny format. Numer telefonu powinien zawierać 7–15 cyfr (może zawierać +, spacje i nawiasy). Alergie i uwagi pozostają opcjonalne. Pola obowiązkowe mają gwiazdkę.
+Formularz ma karty „Gość 1”, „Gość 2”… i jeden przycisk **Dodaj osobę**. Jedna wysyłka może zawierać maksymalnie dwie osoby — można dodać jednego dodatkowego gościa. Nie ma kodów, listy zaproszeń, powiązań osób, przypisywania do zaproszeń ani porównywania nazwisk z listą i wykrywania duplikatów. Imię, nazwisko i obecność są wymagane dla każdego gościa. Menu jest wymagane przy potwierdzonej obecności. Nocleg jest zapewniony domyślnie; checkbox pozwala z niego zrezygnować. Dla każdego gościa trzeba podać przynajmniej jedną formę kontaktu: e-mail lub telefon. Można podać oba; jeśli są wpisane, oba muszą mieć poprawny format. Numer telefonu powinien zawierać 7–15 cyfr (może zawierać +, spacje i nawiasy). Alergie i uwagi pozostają opcjonalne. Pola obowiązkowe mają gwiazdkę.
 
 Po kliknięciu „Wyślij wszystkie odpowiedzi” otwiera się podsumowanie danych wszystkich gości. „Wróć do edycji” lub Escape zamyka je bez zapisu i bez utraty danych. Dopiero „Zatwierdź i wyślij” wysyła dane do arkusza. Wysyłanie blokuje przyciski, aby nie wykonać dwóch żądań równocześnie.
 
@@ -22,7 +22,7 @@ W prywatnym arkuszu na osobnym koncie Google:
 4. Sprawdź `appsScriptUrl` w `config.js` i opublikuj zmiany strony na GitHub.
 5. Wyślij próbnie kilka osób, potem powtórz wysyłkę i sprawdź nowe wiersze.
 
-Wybór obecności, menu i noclegu odbywa się przez widoczne przyciski radiowe. Każdy gość ma niezależne grupy odpowiedzi. Menu i nocleg są ukryte i niewymagane przy nieobecności. Kontakt pozostaje wymagany również przy nieobecności.
+Wybór obecności i menu odbywa się przez widoczne przyciski radiowe. Nocleg ma checkbox „Rezygnuję z noclegu”, domyślnie odznaczony. Każdy gość ma niezależne grupy odpowiedzi. Menu i nocleg są ukryte i niewymagane przy nieobecności. Kontakt pozostaje wymagany również przy nieobecności.
 
 Kolumny zakładki **Zgloszenia**:
 
@@ -57,9 +57,9 @@ Wklej nowy Code.gs, uruchom setup i zaktualizuj istniejące wdrożenie Apps Scri
 
 ## Nocleg i wybór pokoju
 
-Maksymalnie dwóch gości na formularzu. Menu klasyczne i nocleg Tak są wybrane domyślnie. Nocleg ma opcje Tak/Nie, a rezygnacja wymaga potwierdzenia w popupie. Escape i Zostaję na noc anulują rezygnację.
+Maksymalnie dwóch gości na formularzu. Menu klasyczne i nocleg Tak są wybrane domyślnie. Nocleg ma checkbox „Rezygnuję z noclegu”; zaznaczenie wymaga potwierdzenia w popupie. Escape i Zostaję na noc anulują rezygnację.
 
-Pod noclegiem Tak u każdego gościa pojawiają się dwie opcje radiowe: wspólny pokój z drugą osobą lub własny pokój. Zmiana rodzaju pokoju u jednej osoby automatycznie ustawia ten sam wariant u drugiej. Po dodaniu drugiego gościa, jeśli oboje nocują, domyślny jest wspólny pokój.
+Przy zapewnionym noclegu u każdego gościa pojawiają się dwie opcje radiowe: wspólny pokój z drugą osobą lub własny pokój. Zmiana rodzaju pokoju u jednej osoby automatycznie ustawia ten sam wariant u drugiej. Po dodaniu drugiego gościa, jeśli oboje nocują, domyślny jest wspólny pokój.
 
 Wspólny pokój wymaga obecności i noclegu obu osób. Jeśli nocuje tylko jedna, ma własny pokój; opcja wspólnego jest wyszarzona z wyjaśnieniem. U osoby bez noclegu wybór pokoju jest ukryty. Anulowanie popupu rezygnacji nie zmienia wcześniejszego rodzaju pokoju.
 

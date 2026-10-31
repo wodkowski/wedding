@@ -64,7 +64,8 @@ test('missing setup and old protocol fail without claiming data was saved',()=>{
 test('form requires original starred fields but keeps allergies and notes optional',()=>{
   const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.match(html,/id="add-person"/);assert.doesNotMatch(html,/<form[^>]+novalidate|id="add-(invited|companion)"/);
-  for(const name of ['firstName','lastName','attendance','menu','stay']) assert.match(html,new RegExp('data-field="'+name+'" required'));
+  for(const name of ['firstName','lastName','attendance','menu']) assert.match(html,new RegExp('data-field="'+name+'" required'));
+  assert.match(html,/<input type="checkbox" data-field="stay" value="no">/);
   for(const name of ['allergies','notes']) assert.doesNotMatch(html,new RegExp('data-field="'+name+'"[^>]*required'));
 });
 
