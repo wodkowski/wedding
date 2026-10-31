@@ -7,12 +7,12 @@ test('21st form in five minutes goes to review with all guest rows and its group
   const h=harness();for(let i=0;i<20;i++) assert.equal(h.send().ok,true);
   const result=h.send([main,invited]);
   assert.equal(result.ok,true);assert.equal(result.count,2);assert.equal(h.tables.Zgloszenia.length,21);
-  assert.equal(queue(h).length,2);queue(h).forEach(row=>{assert.equal(row[8],result.submissionId);assert.equal(row[10],'Oczekuje');});
+  assert.equal(queue(h).length,2);queue(h).forEach(row=>{assert.equal(row[8],result.submissionId);assert.equal(row[13],'Oczekuje');});
   assert.match(h.tables.Ochrona[1][1],/DO SPRAWDZENIA/);
 });
 test('a large single form goes entirely to review while normal duplicate names remain allowed',()=>{
-  const h=harness();const result=h.send(Array(101).fill(main));
-  assert.equal(result.ok,true);assert.equal(h.tables.Zgloszenia.length,1);assert.equal(queue(h).length,101);
+  const h=harness();h.setProtection({maxPeople:1});const result=h.send([main,invited]);
+  assert.equal(result.ok,true);assert.equal(h.tables.Zgloszenia.length,1);assert.equal(queue(h).length,2);
 });
 test('rolling window expires, cooldown retains later forms and then normal mode returns',()=>{
   const h=harness();for(let i=0;i<21;i++) h.send();
@@ -44,13 +44,13 @@ test('invalid guest fields never write or count as accepted submissions',()=>{
 test('selecting one review row approves the entire group once without deleting audit rows',()=>{
   const h=harness();h.context.enableReviewMode();h.send([main,invited]);h.send();
   h.selectRows(2);h.context.approveSelectedSubmissions();
-  assert.equal(h.tables.Zgloszenia.length,3);assert.equal(queue(h)[0][10],'Zatwierdzone');assert.equal(queue(h)[1][10],'Zatwierdzone');assert.equal(queue(h)[2][10],'Oczekuje');
+  assert.equal(h.tables.Zgloszenia.length,3);assert.equal(queue(h)[0][13],'Zatwierdzone');assert.equal(queue(h)[1][13],'Zatwierdzone');assert.equal(queue(h)[2][13],'Oczekuje');
   h.context.approveSelectedSubmissions();assert.equal(h.tables.Zgloszenia.length,3);
 });
 test('approval retry repairs status after a previous append, without duplicating the group',()=>{
   const h=harness();h.context.enableReviewMode();h.send([main,invited]);
-  h.tables.Zgloszenia.push(...queue(h).map(row=>row.slice(0,9)));h.selectRows(2);h.context.approveSelectedSubmissions();
-  assert.equal(h.tables.Zgloszenia.length,3);queue(h).forEach(row=>assert.equal(row[10],'Zatwierdzone'));
+  h.tables.Zgloszenia.push(...queue(h).map(row=>row.slice(0,12)));h.selectRows(2);h.context.approveSelectedSubmissions();
+  assert.equal(h.tables.Zgloszenia.length,3);queue(h).forEach(row=>assert.equal(row[13],'Zatwierdzone'));
 });
 test('installation creates one folder, one daily Warsaw trigger and first full copy',()=>{
   const h=harness();h.send();h.context.installProtection();h.context.installProtection();
@@ -68,4 +68,31 @@ test('failed backup records an error while existing snapshots and normal submiss
   assert.throws(()=>h.context.createBackupNow(),/Drive unavailable/);
   assert.equal(h.copies.length,1);assert.match(h.properties.get('BACKUP_LAST_ERROR'),/Drive unavailable/);assert.equal(h.send().ok,true);
   h.cloud.failCopy=false;h.context.createBackupNow();assert.equal(h.properties.get('BACKUP_LAST_ERROR'),'');
+});
+
+test('contacts survive quarantine and approval into the main sheet',()=>{
+  const h=harness();h.context.enableReviewMode();h.send([main,invited]);
+  assert.equal(queue(h)[0][9],'anna@example.com');assert.equal(queue(h)[1][10],"'+48 600 123 456");
+  h.selectRows(2);h.context.approveSelectedSubmissions();
+  assert.equal(h.tables.Zgloszenia[1][9],'anna@example.com');assert.equal(h.tables.Zgloszenia[2][10],"'+48 600 123 456");
+});
+test('old review metadata shifts safely around new contact columns',()=>{
+  const h=harness();
+  h.tables['Do sprawdzenia']=[
+    ['Data','Imię','Nazwisko','Obecność','Menu','Nocleg','Alergie','Uwagi','ID zgłoszenia','Powód skierowania','Status weryfikacji'],
+    ['2026-01-01','Anna','Testowa','Tak','Klasyczne','Nie','','','old-id','Stary powód','Oczekuje']
+  ];
+  h.context.setup();
+  const row=queue(h)[0];assert.equal(row[8],'old-id');assert.equal(row[9],'');assert.equal(row[10],'');assert.equal(row[12],'Stary powód');assert.equal(row[13],'Oczekuje');
+  h.selectRows(2);h.context.approveSelectedSubmissions();assert.equal(h.tables.Zgloszenia[1][8],'old-id');assert.equal(row[13],'Zatwierdzone');
+});
+
+test('review schema with contacts migrates room column without losing contact or status',()=>{
+  const h=harness();h.tables['Do sprawdzenia']=[
+    ['Data','Imię','Nazwisko','Obecność','Menu','Nocleg','Alergie','Uwagi','ID zgłoszenia','E-mail','Telefon','Powód skierowania','Status weryfikacji'],
+    ['2026-01-01','Anna','Testowa','Tak','Klasyczne','Tak','','','old-contact','anna@example.com','600123456','Powód','Oczekuje']
+  ];
+  h.context.setup();const row=queue(h)[0];
+  assert.equal(row[9],'anna@example.com');assert.equal(row[10],'600123456');assert.equal(row[11],'');assert.equal(row[12],'Powód');assert.equal(row[13],'Oczekuje');
+  h.selectRows(2);h.context.approveSelectedSubmissions();assert.equal(h.tables.Zgloszenia[1][9],'anna@example.com');assert.equal(row[13],'Zatwierdzone');
 });

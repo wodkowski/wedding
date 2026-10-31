@@ -1,8 +1,8 @@
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {randomUUID} from 'node:crypto';
-export const main={firstName:'Anna',lastName:'Testowa',attendance:'yes',menu:'classic',stay:'no',notes:'Wiadomość'};
-export const invited={firstName:'Jan',lastName:'Testowy',attendance:'yes',menu:'vegan',stay:'yes'};
+export const main={firstName:'Anna',lastName:'Testowa',attendance:'yes',menu:'classic',stay:'no',notes:'Wiadomość',email:'anna@example.com'};
+export const invited={firstName:'Jan',lastName:'Testowy',attendance:'yes',menu:'vegan',stay:'yes',phone:'+48 600 123 456'};
 export function harness() {
   const tables={Zgloszenia:[['Data wpisu (Europe/Warsaw)','Imię','Nazwisko','Obecność','Menu','Nocleg','Alergie','Uwagi']]};
   let held=false,writes=0,now=Date.parse('2026-10-30T11:34:56Z'),selection=null;
@@ -13,8 +13,8 @@ export function harness() {
   const sheet=name=>tables[name]&&({
     getName:()=>name,getLastRow:()=>tables[name].length,
     getDataRange:()=>({getValues:()=>tables[name].map(row=>row.slice())}),
-    appendRow:row=>tables[name].push(row),setFrozenRows(){},
-    getRange:(r,c)=>({setValues:rows=>{writes++;rows.forEach((row,i)=>{tables[name][r-1+i]||=[];row.forEach((value,j)=>{tables[name][r-1+i][c-1+j]=value;});});}})
+    appendRow:row=>tables[name].push(row),setFrozenRows(){},insertColumnsAfter:(column,count)=>tables[name].forEach(row=>row.splice(column,0,...Array(count).fill(''))),
+    getRange:(r,c)=>({getValue:()=>tables[name][r-1]?.[c-1],setValues:rows=>{writes++;rows.forEach((row,i)=>{tables[name][r-1+i]||=[];row.forEach((value,j)=>{tables[name][r-1+i][c-1+j]=value;});});}})
   });
   const book={getId:()=> 'book',getSheetByName:sheet,insertSheet:name=>{tables[name]=[];return sheet(name);},getActiveRange:()=>selection};
   const folder={getId:()=> 'folder1'};
@@ -43,5 +43,5 @@ export function harness() {
     ContentService:{MimeType:{JSON:'json'},createTextOutput:value=>({setMimeType:()=>JSON.parse(value)})}
   });
   vm.runInContext(readFileSync(new URL('../../google-apps-script/Code.gs',import.meta.url),'utf8'),context);
-  return {tables,context,dateCalls,properties,copies,triggers,cloud,get writes(){return writes;},advance:ms=>{now+=ms;},selectRows:(first,last=first)=>{selection={getSheet:()=>sheet('Do sprawdzenia'),getRow:()=>first,getLastRow:()=>last};},send:(people=[main],extra={})=>context.doPost({postData:{contents:JSON.stringify({version:4,people,...extra})}})};
+  return {setProtection:patch=>vm.runInContext('Object.assign(PROTECTION,'+JSON.stringify(patch)+')',context),tables,context,dateCalls,properties,copies,triggers,cloud,get writes(){return writes;},advance:ms=>{now+=ms;},selectRows:(first,last=first)=>{selection={getSheet:()=>sheet('Do sprawdzenia'),getRow:()=>first,getLastRow:()=>last};},send:(people=[main],extra={})=>context.doPost({postData:{contents:JSON.stringify({version:7,people,...extra})}})};
 }

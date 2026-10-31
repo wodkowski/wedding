@@ -17,6 +17,10 @@
   const reviewDialog = document.getElementById('review-dialog');
   const reviewPeople = document.getElementById('review-people');
   const confirmButton = document.getElementById('review-confirm');
+  const stayDialog = document.getElementById('stay-dialog');
+  let pendingStayCard = null;
+  let stayDeclined = false;
+  let roomMode = 'shared';
   let pendingReview = null;
   let sending = false;
   const submitButton = form.querySelector('button[type=submit]');
@@ -26,7 +30,11 @@
   let saved = false;
   let counter = 0;
   const cards = () => Array.from(list.querySelectorAll('.person-card'));
-  const field = (card,name) => card.querySelector(`[data-field="${name}"]`);
+  const field = (card,name) => card.querySelector(`[data-field="${name}"]:checked`) || card.querySelector(`[data-field="${name}"]`);
+  const valueOf = (card,name) => {
+    const el = field(card,name);
+    return el.type === 'radio' && !el.checked ? '' : el.value;
+  };
   function feedback(kind,text,buttonText='Rozumiem',summary=null) {
     status.className = kind;
     status.textContent = text;
@@ -64,15 +72,18 @@
   document.getElementById('feedback-close').addEventListener('click',() => dialog.close());
   function updateFieldError(el) {
     const invalid = !el.disabled && el.willValidate && !el.validity.valid;
-    const message = document.getElementById(`${el.id}-error`);
-    el.classList.toggle('is-error',invalid);
-    if (invalid) {
-      el.classList.remove('is-saved');
-      el.setAttribute('aria-invalid','true');
-    } else el.removeAttribute('aria-invalid');
+    const group = el.type === 'radio' ? el.closest('[data-radio-group]') : null;
+    const message = document.getElementById(`${group ? group.id : el.id}-error`);
+    const targets = group ? group.querySelectorAll(`[data-field="${el.dataset.field}"]`) : [el];
+    targets.forEach(input => {
+      input.classList.toggle('is-error',invalid);
+      if (invalid) { input.classList.remove('is-saved'); input.setAttribute('aria-invalid','true'); }
+      else input.removeAttribute('aria-invalid');
+    });
+    if (group) group.classList.toggle('is-error',invalid);
     if (message) {
       message.hidden = !invalid;
-      message.textContent = invalid ? (el.required && !el.value.trim() ? 'Pole nie może być puste' : el.validationMessage) : '';
+      message.textContent = invalid ? (group ? 'Wybierz jedną z odpowiedzi' : el.validity.customError ? el.validationMessage : el.required && !el.value.trim() ? 'Pole nie może być puste' : el.validationMessage) : '';
     }
   }
   // Zdarzenie invalid nie bąbelkuje: przechwytujemy je dla wszystkich pól i kart.
@@ -85,12 +96,14 @@
   }
   function sync() {
     const current = cards();
+    const bothStay = current.length === 2 && current.every(card => valueOf(card,'attendance') === 'yes' && valueOf(card,'stay') === 'yes');
+    addPersonButton.hidden = current.length >= 2;
     removePersonButton.hidden = current.length <= 1;
     current.forEach((card,index) => {
       card.querySelector('[data-person-title]').textContent = `Gość ${index+1}`;
       card.querySelector('[data-remove]').hidden = index === 0;
       const details = card.querySelector('[data-person-details]');
-      const attending = field(card,'attendance').value === 'yes';
+      const attending = valueOf(card,'attendance') === 'yes';
       details.hidden = !attending;
       details.querySelectorAll('input,select').forEach(el => {
         el.disabled = !attending;
@@ -100,17 +113,49 @@
         const el = field(card,name);
         el.setCustomValidity(el.value && !el.value.trim() ? 'Wpisz imię lub nazwisko, nie same spacje.' : '');
       });
+      const email = field(card,'email');
+      const phone = field(card,'phone');
+      const missingContact = !email.value.trim() && !phone.value.trim();
+      email.required = phone.required = missingContact;
+      email.setCustomValidity(missingContact ? 'Podaj e-mail lub numer telefonu.' : '');
+      const digits = phone.value.replace(/\D/g,'');
+      phone.setCustomValidity(missingContact ? 'Podaj e-mail lub numer telefonu.' : phone.value.trim() && (!/^[+\d\s().-]+$/.test(phone.value) || digits.length < 7 || digits.length > 15) ? 'Podaj poprawny numer telefonu (7–15 cyfr).' : '');
+      [email,phone].forEach(el => { if (el.classList.contains('is-error')) updateFieldError(el); });
+      const roomChoice = card.querySelector('[data-room-choice]');
+      const roomHelp = card.querySelector('[data-room-help]');
+      const stays = attending && valueOf(card,'stay') === 'yes';
+      const shared = card.querySelector('[data-field="room"][value="shared"]');
+      const own = card.querySelector('[data-field="room"][value="own"]');
+      roomChoice.hidden = current.length < 2 || !stays;
+      shared.disabled = !bothStay;
+      own.disabled = !stays;
+      shared.checked = bothStay && roomMode === 'shared';
+      own.checked = !shared.checked;
+      card.querySelector('[data-shared-label]').textContent = `Wspólny pokój z Gościem ${index === 0 ? 2 : 1}`;
+      roomHelp.textContent = current.length < 2 ? 'Wspólny pokój możesz wybrać po dodaniu Gościa 2.' : !bothStay ? `Gość ${index === 0 ? 2 : 1} nie korzysta z noclegu. Otrzymasz własny pokój.` : 'Wybór pokoju automatycznie aktualizuje odpowiedź drugiej osoby.';
     });
-    const attendees = current.filter(card => field(card,'attendance').value === 'yes').length;
+    const attendees = current.filter(card => valueOf(card,'attendance') === 'yes').length;
     document.getElementById('people-summary').textContent = `Osób w zgłoszeniu: ${current.length} · Potwierdza obecność: ${attendees}`;
   }
   function addPerson(focus=true) {
+    if (cards().length >= 2) return;
+    if (cards().length === 1) roomMode = 'shared';
     const card = document.getElementById('person-template').content.firstElementChild.cloneNode(true);
     card.dataset.key = String(++counter);
+    card.querySelectorAll('[data-radio-group]').forEach(group => {
+      group.id = `person-${counter}-${group.dataset.radioGroup}`;
+      const error = document.createElement('span');
+      error.id = `${group.id}-error`; error.className = 'field-error'; error.hidden = true;
+      group.append(error);
+    });
     card.querySelectorAll('[data-field]').forEach(el => {
       el.name = `person-${counter}-${el.dataset.field}`;
-      el.id = `person-${counter}-${el.dataset.field}`;
+      el.id = `person-${counter}-${el.dataset.field}${el.type === 'radio' ? '-'+el.value : ''}`;
       el.autocomplete = 'off';
+      if (el.type === 'radio') {
+        el.setAttribute('aria-describedby',`${el.closest('[data-radio-group]').id}-error`);
+        return;
+      }
       const error = document.createElement('span');
       error.id = `${el.id}-error`;
       error.className = 'field-error';
@@ -118,6 +163,9 @@
       el.insertAdjacentElement('afterend',error);
       el.setAttribute('aria-describedby',error.id);
     });
+    const roomHelp = card.querySelector('[data-room-help]');
+    roomHelp.id = `person-${counter}-room-help`;
+    card.querySelectorAll('[data-field="room"]').forEach(el => el.setAttribute('aria-describedby',`${el.closest('[data-radio-group]').id}-error ${roomHelp.id}`));
     card.querySelector('[data-remove]').addEventListener('click',() => {
       markDirty(); card.remove(); sync();
       (cards().at(-1)?.querySelector('input') || addPersonButton).focus();
@@ -136,15 +184,43 @@
     (removePersonButton.hidden ? addPersonButton : removePersonButton).focus();
   });
   function onEdit(event) {
-    markDirty(); sync();
+    markDirty();
+    if (event.target.dataset.field === 'room' && event.target.checked) roomMode = event.target.value;
+    if (event.target.dataset.field === 'stay' && event.target.value === 'no' && event.target.checked) {
+      if (event.type === 'change') {
+        pendingStayCard = event.target.closest('.person-card');
+        stayDeclined = false;
+        stayDialog.showModal();
+      }
+      return;
+    }
+    sync();
     if (event.target.classList.contains('is-error')) updateFieldError(event.target);
   }
+  document.getElementById('stay-keep').addEventListener('click',() => stayDialog.close());
+  document.getElementById('stay-decline').addEventListener('click',() => {
+    stayDeclined = true;
+    stayDialog.close();
+  });
+  stayDialog.addEventListener('close',() => {
+    if (stayDeclined) roomMode = 'own';
+    if (pendingStayCard && !stayDeclined) {
+      const yes = pendingStayCard.querySelector('[data-field="stay"][value="yes"]');
+      yes.checked = true;
+      markDirty(); sync();
+      updateFieldError(yes);
+      yes.focus();
+    }
+    sync();
+    pendingStayCard = null;
+  });
   form.addEventListener('input',onEdit);
   form.addEventListener('change',onEdit);
   function serialize() {
     return cards().filter(card => !card.hidden).map(card => {
       const data = {};
-      card.querySelectorAll('[data-field]').forEach(el => { if (!el.disabled) data[el.dataset.field] = el.value; });
+      card.querySelectorAll('[data-field]').forEach(el => { if (el.dataset.field !== 'room' && !el.disabled && (el.type !== 'radio' || el.checked)) data[el.dataset.field] = el.value; });
+      data.sharedRoom = valueOf(card,'room') === 'shared' && !field(card,'room').disabled;
       return data;
     });
   }
@@ -161,8 +237,11 @@
       const attending = person.attendance === 'yes';
       [
         ['Obecność',attending ? 'Tak, będzie z nami' : 'Nie, nie może przyjść'],
+        ['E-mail',person.email || 'Nie podano'],
+        ['Telefon',person.phone || 'Nie podano'],
         ['Menu',attending ? menus[person.menu] : 'Nie dotyczy'],
         ['Nocleg',attending ? stays[person.stay] : 'Nie dotyczy'],
+        ['Pokój',attending && person.stay === 'yes' ? person.sharedRoom ? `Wspólny z Gościem ${index === 0 ? 2 : 1}` : 'Własny pokój' : 'Nie dotyczy'],
         ['Alergie',attending ? person.allergies || 'Brak informacji' : 'Nie dotyczy'],
         ['Uwagi',person.notes || 'Brak']
       ].forEach(([label,value]) => {
@@ -213,26 +292,27 @@
     controls.forEach(el => el.disabled = true);
     submitButton.textContent = 'Zapisujemy wszystkie odpowiedzi…';
     try {
-      const response = await fetch(config.appsScriptUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({version:4,people}),redirect:'follow',signal:AbortSignal.timeout(30000)});
+      const response = await fetch(config.appsScriptUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({version:7,people}),redirect:'follow',signal:AbortSignal.timeout(30000)});
       if (!response.ok) throw new Error('HTTP');
       const result = await response.json();
-      if (result.version !== 4 || result.code === 'VERSION' || result.code === 'SETUP') {
+      if (result.version !== 7 || result.code === 'VERSION' || result.code === 'SETUP') {
         feedback('error','Formularz wymaga aktualizacji skryptu Google przez organizatorów. Nie mamy potwierdzenia zapisu tej grupy.'); return;
       }
+      if (result.code === 'MAX_PEOPLE') { feedback('error','W jednym formularzu można zgłosić maksymalnie dwóch gości.'); return; }
       if (result.code === 'FIELDS') {
         const card = cards()[result.personIndex];
         if (card) (result.fields || []).forEach(name => {
           const el = field(card,name);
           if (el) { el.classList.add('is-error'); el.setAttribute('aria-invalid','true'); }
         });
-        feedback('error',`Gość ${result.personIndex+1}: uzupełnij imię, nazwisko i obecność. Przy potwierdzonej obecności wybierz również menu i nocleg.`);
+        feedback('error',`Gość ${result.personIndex+1}: uzupełnij wymagane odpowiedzi i podaj przynajmniej e-mail lub telefon. Przy potwierdzonej obecności wybierz menu i nocleg.`);
         return;
       }
       if (!result.ok || result.count !== people.length) throw new Error('Missing confirmation');
       form.querySelectorAll('.is-saved').forEach(el => el.classList.remove('is-saved'));
       controls.forEach((el,index) => {
         if (previousDisabled[index] || el.tagName === 'BUTTON') return;
-        const filled = el.type === 'checkbox' ? el.checked : (el.value || '').trim() !== '';
+        const filled = ['checkbox','radio'].includes(el.type) ? el.checked : (el.value || '').trim() !== '';
         if (filled) el.classList.add('is-saved');
       });
       saved = true;

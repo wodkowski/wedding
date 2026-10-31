@@ -1,6 +1,6 @@
 // Każde wysłanie dopisuje nowe wiersze. Bez listy gości, kodów i wykrywania duplikatów.
 const RESPONSE_SHEET = 'Zgloszenia';
-const ANSWER_HEADERS = ['Data wpisu (Europe/Warsaw)', 'Imię', 'Nazwisko', 'Obecność', 'Menu', 'Nocleg', 'Alergie', 'Uwagi', 'ID zgłoszenia'];
+const ANSWER_HEADERS = ['Data wpisu (Europe/Warsaw)', 'Imię', 'Nazwisko', 'Obecność', 'Menu', 'Nocleg', 'Alergie', 'Uwagi', 'ID zgłoszenia', 'E-mail', 'Telefon', 'Rodzaj pokoju'];
 const PROTECTION = {windowMs:5*60*1000,maxForms:20,maxPeople:100,cooldownMs:30*60*1000};
 const REVIEW_SHEET = 'Do sprawdzenia';
 const REVIEW_HEADERS = ANSWER_HEADERS.concat(['Powód skierowania','Status weryfikacji']);
@@ -10,7 +10,7 @@ function setup() {
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', book.getId());
   const sheet = book.getSheetByName(RESPONSE_SHEET) || book.insertSheet(RESPONSE_SHEET);
   if (!sheet.getLastRow()) sheet.appendRow(ANSWER_HEADERS);
-  else sheet.getRange(1,9,1,1).setValues([['ID zgłoszenia']]);
+  else sheet.getRange(1,1,1,ANSWER_HEADERS.length).setValues([ANSWER_HEADERS]);
   sheet.setFrozenRows(1);
   ensureSheet_(book,REVIEW_SHEET,REVIEW_HEADERS);
   updateProtectionStatus_(book);
@@ -24,9 +24,10 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
     const data = JSON.parse(e.postData.contents);
-    if (data.version !== 4) return jsonResponse({ok:false,version:4,code:'VERSION'});
+    if (data.version !== 7) return jsonResponse({ok:false,version:7,code:'VERSION'});
     // Sprawdzamy tylko wymagane odpowiedzi. Nie sprawdzamy listy gości ani powtórzeń.
     if (!Array.isArray(data.people) || !data.people.length) throw new Error('Missing rows');
+    if (data.people.length > 2) return jsonResponse({ok:false,version:7,code:'MAX_PEOPLE'});
     const menus = {classic:'Klasyczne',vegetarian:'Wegetariańskie',vegan:'Wegańskie',child:'Dziecięce'};
     const stays = {yes:'Tak',no:'Nie',unsure:'Jeszcze nie wiem'};
     for (let index = 0; index < data.people.length; index++) {
@@ -36,35 +37,44 @@ function doPost(e) {
         if (typeof person[name] !== 'string' || !person[name].trim()) missing.push(name);
       });
       if (['yes','no'].indexOf(person.attendance) < 0) missing.push('attendance');
+      const email = String(person.email || '').trim();
+      const phone = String(person.phone || '').trim();
+      if (!email && !phone) missing.push('email','phone');
+      if (email && !/^[^\s@]+@[^\s@]+$/.test(email)) missing.push('email');
+      const digits = phone.replace(/\D/g,'');
+      if (phone && (!/^[+\d\s().-]+$/.test(phone) || digits.length < 7 || digits.length > 15)) missing.push('phone');
       if (person.attendance === 'yes') {
         if (!Object.prototype.hasOwnProperty.call(menus,person.menu)) missing.push('menu');
         if (!Object.prototype.hasOwnProperty.call(stays,person.stay)) missing.push('stay');
       }
-      if (missing.length) return jsonResponse({ok:false,version:4,code:'FIELDS',personIndex:index,fields:missing});
+      if (person.sharedRoom != null && typeof person.sharedRoom !== 'boolean') missing.push('sharedRoom');
+      if (person.sharedRoom === true && (data.people.length !== 2 || !data.people.every(function(p) { return p.attendance === 'yes' && p.stay === 'yes' && p.sharedRoom === true; }))) missing.push('sharedRoom');
+      if (missing.length) return jsonResponse({ok:false,version:7,code:'FIELDS',personIndex:index,fields:missing});
     }
     const translated = function(map,value) { return Object.prototype.hasOwnProperty.call(map,value) ? map[value] : value; };
     const timestamp = Utilities.formatDate(new Date(),'Europe/Warsaw','yyyy-MM-dd HH:mm:ss');
     const submissionId = Utilities.getUuid();
-    const rows = data.people.map(function(person) {
+    const rows = data.people.map(function(person,index) {
       person = person || {};
-      return [timestamp,safeCell(person.firstName),safeCell(person.lastName),safeCell(translated({yes:'Tak',no:'Nie'},person.attendance)),safeCell(translated(menus,person.menu)),safeCell(translated(stays,person.stay)),safeCell(person.allergies),safeCell(person.notes),submissionId];
+      const room = person.attendance === 'yes' && person.stay === 'yes' ? person.sharedRoom ? 'Wspólny z Gościem '+(index === 0 ? 2 : 1) : 'Własny pokój' : '';
+      return [timestamp,safeCell(person.firstName),safeCell(person.lastName),safeCell(translated({yes:'Tak',no:'Nie'},person.attendance)),safeCell(translated(menus,person.menu)),safeCell(translated(stays,person.stay)),safeCell(person.allergies),safeCell(person.notes),submissionId,safeCell(person.email),safeCell(person.phone),room];
     });
     lock.waitLock(20000);
     const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
-    if (!id) return jsonResponse({ok:false,version:4,code:'SETUP'});
+    if (!id) return jsonResponse({ok:false,version:7,code:'SETUP'});
     const book = SpreadsheetApp.openById(id);
-    if (!book.getSheetByName(RESPONSE_SHEET)) return jsonResponse({ok:false,version:4,code:'SETUP'});
+    if (!book.getSheetByName(RESPONSE_SHEET)) return jsonResponse({ok:false,version:7,code:'SETUP'});
     const route = routeSubmission_(rows.length,Date.now());
     const sheet = route.review ? ensureSheet_(book,REVIEW_SHEET,REVIEW_HEADERS) : book.getSheetByName(RESPONSE_SHEET);
-    sheet.getRange(1,9,1,1).setValues([['ID zgłoszenia']]);
+    sheet.getRange(1,1,1,route.review ? REVIEW_HEADERS.length : ANSWER_HEADERS.length).setValues([route.review ? REVIEW_HEADERS : ANSWER_HEADERS]);
     const savedRows = route.review ? rows.map(function(row) { return row.concat([route.reason,'Oczekuje']); }) : rows;
     sheet.getRange(sheet.getLastRow()+1,1,savedRows.length,savedRows[0].length).setValues(savedRows);
     SpreadsheetApp.flush();
     // Błąd panelu stanu nie może zmienić udanego zapisu w komunikat porażki.
     try { updateProtectionStatus_(book); } catch (statusError) { console.warn('Nie udało się odświeżyć panelu ochrony.'); }
-    return jsonResponse({ok:true,version:4,count:rows.length,submissionId:submissionId});
+    return jsonResponse({ok:true,version:7,count:rows.length,submissionId:submissionId});
   } catch (error) {
-    return jsonResponse({ok:false,version:4,code:'SAVE'});
+    return jsonResponse({ok:false,version:7,code:'SAVE'});
   } finally { if (lock.hasLock()) lock.releaseLock(); }
 }
 function jsonResponse(value) { return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
@@ -73,6 +83,15 @@ function jsonResponse(value) { return ContentService.createTextOutput(JSON.strin
 function ensureSheet_(book,name,headers) {
   const sheet = book.getSheetByName(name) || book.insertSheet(name);
   if (!sheet.getLastRow()) { sheet.appendRow(headers); sheet.setFrozenRows(1); }
+  else if (name === REVIEW_SHEET) {
+    // Zachowaj metadane starszych wersji kolejki po dodaniu nowych kolumn.
+    [10,12].some(function(column) {
+      if (sheet.getRange(1,column,1,1).getValue() !== 'Powód skierowania') return false;
+      sheet.insertColumnsAfter(column-1,ANSWER_HEADERS.length-(column-1));
+      sheet.getRange(1,1,1,headers.length).setValues([headers]);
+      return true;
+    });
+  }
   return sheet;
 }
 function readTrafficState_() {
@@ -200,22 +219,23 @@ function approveSelectedSubmissions() {
   if (!selected || selected.getSheet().getName() !== REVIEW_SHEET) throw new Error('Zaznacz wiersze w zakładce Do sprawdzenia.');
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
-    const review = book.getSheetByName(REVIEW_SHEET);
+    const review = ensureSheet_(book,REVIEW_SHEET,REVIEW_HEADERS);
     const records = review.getDataRange().getValues();
     const selectedIds = new Set();
     for (let row = Math.max(2,selected.getRow()); row <= Math.min(records.length,selected.getLastRow()); row++) {
-      if (records[row-1][8] && records[row-1][10] === 'Oczekuje') selectedIds.add(records[row-1][8]);
+      if (records[row-1][8] && records[row-1][ANSWER_HEADERS.length+1] === 'Oczekuje') selectedIds.add(records[row-1][8]);
     }
     const main = book.getSheetByName(RESPONSE_SHEET);
     const existingIds = new Set(main.getDataRange().getValues().slice(1).map(function(row) { return row[8]; }));
-    const pending = records.slice(1).filter(function(row) { return selectedIds.has(row[8]) && row[10] === 'Oczekuje' && !existingIds.has(row[8]); });
+    const pending = records.slice(1).filter(function(row) { return selectedIds.has(row[8]) && row[ANSWER_HEADERS.length+1] === 'Oczekuje' && !existingIds.has(row[8]); });
     if (pending.length) {
-      const rows = pending.map(function(row) { return row.slice(0,9).map(safeCell); });
-      main.getRange(main.getLastRow()+1,1,rows.length,9).setValues(rows);
+      const rows = pending.map(function(row) { return row.slice(0,ANSWER_HEADERS.length).map(safeCell); });
+      main.getRange(1,1,1,ANSWER_HEADERS.length).setValues([ANSWER_HEADERS]);
+      main.getRange(main.getLastRow()+1,1,rows.length,ANSWER_HEADERS.length).setValues(rows);
       SpreadsheetApp.flush();
     }
     records.slice(1).forEach(function(row,index) {
-      if (selectedIds.has(row[8]) && row[10] === 'Oczekuje') review.getRange(index+2,11,1,1).setValues([['Zatwierdzone']]);
+      if (selectedIds.has(row[8]) && row[ANSWER_HEADERS.length+1] === 'Oczekuje') review.getRange(index+2,ANSWER_HEADERS.length+2,1,1).setValues([['Zatwierdzone']]);
     });
     updateProtectionStatus_(book);
   } finally { lock.releaseLock(); }

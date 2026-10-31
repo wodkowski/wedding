@@ -4,9 +4,9 @@ import {readFileSync} from 'node:fs';
 import {harness,main,invited} from './support/google-fixture.mjs';
 
 test('arbitrary guests are accepted without any roster or invitation sheets',()=>{
-  const h=harness();const result=h.send([main,invited,{...main,firstName:'Ktoś',lastName:'Spoza Listy'}]);
-  assert.equal(result.ok,true);assert.equal(result.count,3);assert.equal(h.tables.Zgloszenia.length,4);
-  assert.equal(h.tables.Zgloszenia[3][1],'Ktoś');
+  const h=harness();const result=h.send([main,{...invited,firstName:'Ktoś',lastName:'Spoza Listy'}]);
+  assert.equal(result.ok,true);assert.equal(result.count,2);assert.equal(h.tables.Zgloszenia.length,3);
+  assert.equal(h.tables.Zgloszenia[2][1],'Ktoś');
 });
 test('same names within one submission and identical repeated submissions append duplicates',()=>{
   const h=harness();h.send([main,main]);h.send([main,main]);
@@ -26,7 +26,7 @@ test('missing required answers reject the whole submission without partial rows'
   }
 });
 test('allergies and notes remain optional; decline does not require menu or stay',()=>{
-  const h=harness();assert.equal(h.send([invited,{firstName:'Piotr',lastName:'Testowy',attendance:'no'}]).ok,true);
+  const h=harness();assert.equal(h.send([invited,{firstName:'Piotr',lastName:'Testowy',attendance:'no',email:'piotr@example.com'}]).ok,true);
   assert.equal(h.tables.Zgloszenia[1][6],'');assert.equal(h.tables.Zgloszenia[1][7],'');
   assert.equal(h.tables.Zgloszenia[2][3],'Nie');assert.equal(h.tables.Zgloszenia[2][4],'');
 });
@@ -41,7 +41,7 @@ test('entered text stays text rather than becoming a spreadsheet formula',()=>{
 });
 test('setup creates fresh append-only sheet and keeps historic responses untouched',()=>{
   const h=harness();delete h.tables.Zgloszenia;h.tables.OdpowiedziV3=[['old'],['keep']];
-  h.context.setup();assert.equal(h.tables.Zgloszenia[0].length,9);assert.equal(h.tables.OdpowiedziV3[1][0],'keep');
+  h.context.setup();assert.equal(h.tables.Zgloszenia[0].length,12);assert.equal(h.tables.OdpowiedziV3[1][0],'keep');
 });
 
 test('guests sent together share one submission ID; each repeated send gets a new ID',()=>{
@@ -66,4 +66,34 @@ test('form requires original starred fields but keeps allergies and notes option
   assert.match(html,/id="add-person"/);assert.doesNotMatch(html,/<form[^>]+novalidate|id="add-(invited|companion)"/);
   for(const name of ['firstName','lastName','attendance','menu','stay']) assert.match(html,new RegExp('data-field="'+name+'" required'));
   for(const name of ['allergies','notes']) assert.doesNotMatch(html,new RegExp('data-field="'+name+'"[^>]*required'));
+});
+
+test('each guest can provide email only, phone only or both',()=>{
+  const h=harness();
+  assert.equal(h.send([main,invited]).ok,true);assert.equal(h.send([{...main,phone:'600123456'}]).ok,true);
+  assert.equal(h.tables.Zgloszenia[1][9],'anna@example.com');
+  assert.equal(h.tables.Zgloszenia[2][10],"'+48 600 123 456");
+  assert.equal(h.tables.Zgloszenia[3][10],'600123456');
+});
+test('missing or invalid contact rejects the entire submission',()=>{
+  for(const changes of [{email:'',phone:''},{email:'   ',phone:'  '},{email:'invalid'},{email:'',phone:'123'},{email:'',phone:'letters'}]) {
+    const h=harness();const result=h.send([invited,{...main,...changes}]);
+    assert.equal(result.code,'FIELDS');assert.equal(result.personIndex,1);assert.equal(h.writes,0);
+  }
+});
+
+test('at most two guests are accepted even when bypassing the page',()=>{
+  const h=harness();assert.equal(h.send([main,invited,main]).code,'MAX_PEOPLE');
+  assert.equal(h.writes,0);assert.equal(h.tables.Zgloszenia.length,1);
+});
+test('shared room is stored consistently for both guests when they stay overnight',()=>{
+  const h=harness();assert.equal(h.send([{...main,stay:'yes',sharedRoom:true},{...invited,sharedRoom:true}]).ok,true);
+  assert.equal(h.tables.Zgloszenia[1][11],'Wspólny z Gościem 2');assert.equal(h.tables.Zgloszenia[2][11],'Wspólny z Gościem 1');
+  assert.equal(h.send([{...main,stay:'yes'},{...invited,sharedRoom:false}]).ok,true);
+  assert.equal(h.tables.Zgloszenia[4][11],'Własny pokój');
+});
+test('ineligible shared-room requests are rejected without saving either guest',()=>{
+  for(const people of [[main,{...invited,sharedRoom:true}],[{...main,stay:'yes'},{...invited,stay:'no',sharedRoom:true}],[{...main,stay:'yes',sharedRoom:true},invited]]) {
+    const h=harness();const result=h.send(people);assert.equal(result.code,'FIELDS');assert.ok(result.fields.includes('sharedRoom'));assert.equal(h.writes,0);
+  }
 });
